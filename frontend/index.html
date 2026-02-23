@@ -795,6 +795,10 @@ body {
   <span style="color:var(--text3);font-size:10px;">PASS</span>
   <input class="cfg-field" id="cfgPassword" style="width:130px" type="password" placeholder="••••••••" value="093588059">
   <div class="topbar-sep"></div>
+  <div class="topbar-sep"></div>
+  <button class="btn small" onclick="login()">Войти</button>
+  <button class="btn small" onclick="logout()">Выйти</button>
+  <button class="btn small" onclick="loadSuites()">Загрузить</button>
   <div class="theme-toggle" onclick="toggleTheme()" title="Сменить тему">
     <span class="theme-toggle-icon" id="themeIcon">🌙</span>
     <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
@@ -942,7 +946,99 @@ const S = {
   graphNodes: [],        // для панели 4
   previewTab: 'graph',
 };
+// ─────────────────────────────
+// LOGIN
+// ─────────────────────────────
+async function login() {
+  setRunStatus('running', 'Авторизация...');
 
+  try {
+    const { login, password } = cfg();
+
+    if (!login || !password) {
+      throw new Error('Введите логин и пароль');
+    }
+
+    // Шаг 1 — auth
+    const d1 = await apiPost('/auth/', {
+      login,
+      type: 'e-mail',
+      password
+    });
+
+    if (d1.code !== '200' || !d1.auth_hash) {
+      throw new Error(d1.message || 'auth failed');
+    }
+
+    // Шаг 2 — token (использует PHP session)
+    const d2 = await apiPost('/token', {
+      auth_hash: d1.auth_hash
+    });
+
+    if (d2.code !== '200' || !d2.data?.token) {
+      throw new Error(d2.message || 'token failed');
+    }
+
+    // ВАЖНО: структура backend
+    S.state.token  = d2.data.token;
+    S.state.u_hash = d2.data.u_hash;
+    S.state.u_id   = d2.auth_user?.u_id || null;
+
+    setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
+    toast('Авторизация успешна', 'success');
+
+  } catch (e) {
+    S.state = {};
+    setRunStatus('fail', 'Ошибка авторизации');
+    toast(e.message, 'error');
+  }
+}
+
+// ─────────────────────────────
+// LOGOUT
+// ─────────────────────────────
+function logout() {
+  S.state = {};
+  S.suites = [];
+  S.cases  = [];
+  renderTree();
+  setRunStatus('idle', 'Не авторизован');
+  toast('Вы вышли', 'info');
+}
+
+// ─────────────────────────────
+// LOAD SUITES
+// ─────────────────────────────
+async function loadSuites() {
+
+  if (!S.state.token) {
+    toast('Сначала выполните вход', 'error');
+    return;
+  }
+
+  setTreeLoading(true);
+
+  try {
+    const rows = await queryTemplate(101);
+
+    S.suites = rows.map(r => ({
+      id: Number(r.id),
+      name: r.name,
+      description: r.description || '',
+      domain: r.domain || 'medical',
+      base_url: r.base_url || cfg().baseUrl,
+      sort: Number(r.sort) || 0,
+    }));
+
+    renderTree();
+    toast(`Наборов загружено: ${S.suites.length}`, 'success');
+
+  } catch (e) {
+    toast(`Ошибка загрузки наборов: ${e.message}`, 'error');
+  }
+
+  setTreeLoading(false);
+}
 // ════════════════════════════════════════════════════════════
 //  CONFIG
 // ════════════════════════════════════════════════════════════
@@ -963,20 +1059,28 @@ function cfg() {
 async function apiPost(url, bodyObj) {
   const { baseUrl } = cfg();
   const body = new URLSearchParams(bodyObj);
+
   const resp = await fetch(baseUrl + url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
     body: body.toString(),
   });
+
   return resp.json();
 }
 
 async function apiGet(url, params = {}) {
   const { baseUrl, token, u_hash } = cfg();
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
+
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
+    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
     headers: { 'Accept': 'application/json' },
   });
+
   return resp.json();
 }
 
@@ -1072,12 +1176,17 @@ async function init() {
 }
 
 function setTreeLoading(on) {
-  if (!on) return;
-  document.getElementById('suiteTree').innerHTML = `
-    <div class="empty-state" style="height:120px">
-      <div class="no-results-icon" style="font-size:22px;opacity:.5">⏳</div>
-      <div class="no-results-text">Загрузка из БД...</div>
-    </div>`;
+  const el = document.getElementById('suiteTree');
+
+  if (on) {
+    el.innerHTML = `
+      <div class="empty-state" style="height:120px">
+        <div class="no-results-icon" style="font-size:22px;opacity:.5">⏳</div>
+        <div class="no-results-text">Загрузка из БД...</div>
+      </div>`;
+  } else {
+    el.innerHTML = '';
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2046,7 +2155,9 @@ function toggleTheme() {
 // ════════════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════════════
-init();
+// init();  // убрали автологин
+setRunStatus('idle', 'Не авторизован');
+
 </script>
 </body>
 </html>
