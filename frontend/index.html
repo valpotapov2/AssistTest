@@ -30,9 +30,67 @@
   --r2:         10px;
 }
 
+/* ── LIGHT THEME ── */
+:root.light {
+  --bg:         #f0f2f7;
+  --bg2:        #ffffff;
+  --bg3:        #e8ecf5;
+  --bg4:        #dde3f0;
+  --border:     #d0d7e8;
+  --border2:    #b8c3dc;
+  --accent:     #2563eb;
+  --accent2:    #1d4ed8;
+  --green:      #16a34a;
+  --red:        #dc2626;
+  --yellow:     #d97706;
+  --purple:     #7c3aed;
+  --cyan:       #0891b2;
+  --text:       #1e293b;
+  --text2:      #475569;
+  --text3:      #94a3b8;
+}
+
+
+/* Переключатель темы */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  transition: all 0.15s;
+  user-select: none;
+  flex-shrink: 0;
+}
+.theme-toggle:hover { border-color: var(--accent); }
+.theme-toggle-track {
+  width: 30px; height: 16px;
+  border-radius: 8px;
+  background: var(--border2);
+  position: relative;
+  transition: background 0.25s;
+  flex-shrink: 0;
+}
+:root.light .theme-toggle-track { background: var(--accent); }
+.theme-toggle-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px; left: 2px;
+  transition: transform 0.25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+:root.light .theme-toggle-thumb { transform: translateX(14px); }
+.theme-toggle-icon { font-size: 12px; line-height: 1; }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
+  transition: background-color 0.25s, color 0.25s;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-mono);
@@ -733,9 +791,15 @@ body {
   <input class="cfg-field" id="cfgBaseUrl" placeholder="https://geoblinker.ru/taxi/c/Assist/api/v1" value="https://geoblinker.ru/taxi/c/Assist/api/v1">
   <div class="topbar-sep"></div>
   <span style="color:var(--text3);font-size:10px;">LOGIN</span>
-  <input class="cfg-field" id="cfgLogin" style="width:160px" placeholder="doctor@clinic.ru">
+  <input class="cfg-field" id="cfgLogin" style="width:160px" placeholder="doctor@clinic.ru" value="doctor@doctor.ru">
   <span style="color:var(--text3);font-size:10px;">PASS</span>
-  <input class="cfg-field" id="cfgPassword" style="width:130px" type="password" placeholder="••••••••">
+  <input class="cfg-field" id="cfgPassword" style="width:130px" type="password" placeholder="••••••••" value="093588059">
+  <div class="topbar-sep"></div>
+  <div class="theme-toggle" onclick="toggleTheme()" title="Сменить тему">
+    <span class="theme-toggle-icon" id="themeIcon">🌙</span>
+    <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
+    <span class="theme-toggle-icon" id="themeIconRight">☀️</span>
+  </div>
 </div>
 
 <!-- WORKSPACE -->
@@ -893,142 +957,127 @@ function cfg() {
 }
 
 // ════════════════════════════════════════════════════════════
-//  DATA — hardcoded fallback (будет заменено на queryTemplate)
+//  API — queryTemplate слой
 // ════════════════════════════════════════════════════════════
-const BUILTIN_SUITES = [
-  { id: 1, name: 'Медицина: полный флоу врача', domain: 'medical',
-    description: 'Авторизация → Пациент → Первичный приём → Фото → Завершение → Осмотр → Повторный приём',
-    base_url: 'https://geoblinker.ru/taxi/c/Assist/api/v1' }
-];
 
-const BUILTIN_CASES = [
-  { id:1,  suite:1, name:'Авторизация: шаг 1 — auth_hash',   sort:10,  method:'POST', url:'/auth/',  group:'auth',          tags:'auth,chain',     depends_on:0,  u_a_role:0,
-    params:'{"login":"<cfg_login>","type":"e-mail","password":"<cfg_password>"}',
-    state_save:'{"auth_hash":"auth_hash"}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'auth_hash'}],
-    snapshot_config:null },
+async function apiPost(url, bodyObj) {
+  const { baseUrl } = cfg();
+  const body = new URLSearchParams(bodyObj);
+  const resp = await fetch(baseUrl + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  return resp.json();
+}
 
-  { id:2,  suite:1, name:'Авторизация: шаг 2 — token',       sort:20,  method:'POST', url:'/token',  group:'auth',          tags:'auth,chain',     depends_on:1,  u_a_role:0,
-    params:'{"auth_hash":"<auth_hash>"}',
-    state_save:'{"token":"data.token","u_hash":"data.u_hash","u_id":"data.u_id"}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data.token'}],
-    snapshot_config:null },
+async function apiGet(url, params = {}) {
+  const { baseUrl, token, u_hash } = cfg();
+  const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
+  const resp = await fetch(`${baseUrl}${url}?${qs}`, {
+    headers: { 'Accept': 'application/json' },
+  });
+  return resp.json();
+}
 
-  { id:3,  suite:1, name:'Конфигурация приложения',           sort:30,  method:'GET',  url:'/data/',  group:'config',        tags:'chain',           depends_on:2,  u_a_role:0,
-    params:'{}', state_save:'{}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data'}],
-    snapshot_config:null },
+// Запрос к именованному SQL-шаблону
+async function queryTemplate(templateId, vars = {}) {
+  const { token, u_hash } = cfg();
+  const d = await apiPost(`/query/template/${templateId}`, {
+    token, u_hash,
+    data: JSON.stringify(vars),
+  });
+  if (d.code !== '200') throw new Error(d.message || `template ${templateId} error: ${JSON.stringify(d)}`);
+  return d.data; // массив строк из БД
+}
 
-  { id:4,  suite:1, name:'Картотека: список пациентов',       sort:40,  method:'GET',  url:'/drive/archive', group:'patient', tags:'chain',         depends_on:2,  u_a_role:0,
-    params:'{"type":"patient","lo":"0","lc":"10"}',
-    state_save:'{}',
-    validations:[{type:'eq',field:'code',value:'200'}],
-    snapshot_config:null },
-
-  { id:5,  suite:1, name:'Создание пациента',                sort:50,  method:'POST', url:'/contact/create', group:'patient', tags:'chain',         depends_on:2,  u_a_role:0,
-    params:'{"data":"{\"co_name\":\"Тестовый Пациент Авто\",\"co_phone\":\"+70000000001\",\"co_email\":\"autotest@test.ru\"}"}',
-    state_save:'{"co_id":"data.co_id"}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data.co_id'}],
-    snapshot_config:[{label:'Пациент',method:'GET',url:'/drive/archive',params:{patient_id:'<co_id>'}}] },
-
-  { id:6,  suite:1, name:'Поиск пациента по телефону',       sort:60,  method:'GET',  url:'/drive/archive', group:'patient', tags:'chain',         depends_on:5,  u_a_role:0,
-    params:'{"type":"patient","phone":"+70000000001"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}], snapshot_config:null },
-
-  { id:7,  suite:1, name:'Создание первичного приёма',       sort:70,  method:'POST', url:'/drive',   group:'primary',       tags:'chain,auth',      depends_on:5,  u_a_role:2,
-    params:'{"data":"{\"patient_id\":\"<co_id>\",\"type\":\"primary\",\"procedure_type\":\"bta\"}"}',
-    state_save:'{"b_id":"data.b_id"}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data.b_id'}],
-    snapshot_config:[{label:'Приём',method:'GET',url:'/drive/get/<b_id>'}] },
-
-  { id:8,  suite:1, name:'Детали приёма',                    sort:80,  method:'GET',  url:'/drive/get/<b_id>', group:'primary', tags:'chain,auth',  depends_on:7,  u_a_role:2,
-    params:'{}', state_save:'{}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data.b_id'}],
-    snapshot_config:[{label:'Приём',method:'GET',url:'/drive/get/<b_id>'}] },
-
-  { id:9,  suite:1, name:'Прикрепить пациента (set_performer)', sort:90, method:'POST', url:'/drive/get/<b_id>', group:'primary', tags:'chain,auth', depends_on:7, u_a_role:2,
-    params:'{"action":"set_performer","u_id":"<co_id>"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}],
-    snapshot_config:[{label:'Приём',method:'GET',url:'/drive/get/<b_id>'}] },
-
-  { id:10, suite:1, name:'Фото: presigned URL',              sort:100, method:'POST', url:'/storage/presign', group:'photos', tags:'chain,auth',   depends_on:9,  u_a_role:0,
-    params:'{"visit_id":"<b_id>","filename":"lob_static.jpg","content_type":"image/jpeg","zone":"лоб","photo_type":"static","purpose":"primary"}',
-    state_save:'{"presigned_url":"data.presigned_url","s3_key":"data.s3_key"}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data.presigned_url'}],
-    snapshot_config:null },
-
-  { id:11, suite:1, name:'Фото: привязать к приёму',         sort:110, method:'POST', url:'/drive/get/<b_id>', group:'photos', tags:'chain,auth',  depends_on:10, u_a_role:2,
-    params:'{"action":"edit","photo_ids":"[\"<s3_key>\"]"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}],
-    snapshot_config:[{label:'Приём с фото',method:'GET',url:'/drive/get/<b_id>'}] },
-
-  { id:12, suite:1, name:'Завершение первичного приёма',     sort:120, method:'POST', url:'/drive/get/<b_id>', group:'primary', tags:'chain,auth',  depends_on:11, u_a_role:2,
-    params:'{"action":"complete","data":"{\"zones_data\":[{\"zone\":\"лоб\",\"schema\":\"soft\",\"dose\":5}],\"schedule_followup\":true,\"followup_interval_days\":14,\"patient_notification\":{\"send\":false}}"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}],
-    snapshot_config:[{label:'Завершённый приём',method:'GET',url:'/drive/get/<b_id>'},{label:'Пациент',method:'GET',url:'/drive/archive',params:{patient_id:'<co_id>'}}] },
-
-  { id:13, suite:1, name:'Запланированные осмотры',          sort:130, method:'GET',  url:'/drive',   group:'followup',      tags:'chain,auth',      depends_on:12, u_a_role:2,
-    params:'{"type":"followup","status":"scheduled"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}], snapshot_config:null },
-
-  { id:14, suite:1, name:'Создание осмотра (followup)',      sort:140, method:'POST', url:'/drive',   group:'followup',      tags:'chain,auth',      depends_on:12, u_a_role:2,
-    params:'{"data":"{\"patient_id\":\"<co_id>\",\"type\":\"followup\",\"parent_visit_id\":\"<b_id>\"}"}',
-    state_save:'{"b_id_followup":"data.b_id"}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data.b_id'}],
-    snapshot_config:[{label:'Осмотр',method:'GET',url:'/drive/get/<b_id_followup>'}] },
-
-  { id:15, suite:1, name:'Данные предыдущего приёма',        sort:150, method:'GET',  url:'/drive/get/<b_id>', group:'followup', tags:'chain,auth', depends_on:14, u_a_role:2,
-    params:'{}', state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}], snapshot_config:null },
-
-  { id:16, suite:1, name:'Завершение осмотра',               sort:160, method:'POST', url:'/drive/get/<b_id_followup>', group:'followup', tags:'chain,auth', depends_on:14, u_a_role:2,
-    params:'{"action":"complete_followup","data":"{\"results\":{\"лоб\":\"ok\",\"межбровье\":\"needs_correction\"},\"send_collage_to_patient\":false,\"schedule_repeat\":true,\"repeat_interval_months\":6}"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}],
-    snapshot_config:[{label:'Осмотр',method:'GET',url:'/drive/get/<b_id_followup>'}] },
-
-  { id:17, suite:1, name:'Запланированные повторные приёмы', sort:170, method:'GET',  url:'/drive',   group:'repeat',        tags:'chain,auth',      depends_on:16, u_a_role:2,
-    params:'{"type":"repeat","status":"scheduled"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}], snapshot_config:null },
-
-  { id:18, suite:1, name:'Создание повторного приёма',       sort:180, method:'POST', url:'/drive',   group:'repeat',        tags:'chain,auth',      depends_on:16, u_a_role:2,
-    params:'{"data":"{\"patient_id\":\"<co_id>\",\"type\":\"repeat\",\"parent_visit_id\":\"<b_id_followup>\"}"}',
-    state_save:'{"b_id_repeat":"data.b_id"}',
-    validations:[{type:'eq',field:'code',value:'200'},{type:'hasField',field:'data.b_id'}],
-    snapshot_config:[{label:'Повторный приём',method:'GET',url:'/drive/get/<b_id_repeat>'}] },
-
-  { id:19, suite:1, name:'Список уведомлений',               sort:190, method:'GET',  url:'/drive',   group:'notifications', tags:'auth',            depends_on:2,  u_a_role:2,
-    params:'{"type":"notifications"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}], snapshot_config:null },
-
-  { id:20, suite:1, name:'Отправка напоминания пациенту',    sort:200, method:'POST', url:'/contact/message/send', group:'notifications', tags:'chain,auth', depends_on:14, u_a_role:0,
-    params:'{"data":"{\"batch\":[{\"patient_id\":\"<co_id>\",\"template_type\":\"reminder_followup\"}]}"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}], snapshot_config:null },
-
-  { id:21, suite:1, name:'Негативный: неверный пароль',      sort:210, method:'POST', url:'/auth/',  group:'',              tags:'negative',        depends_on:0,  u_a_role:0,
-    params:'{"login":"<cfg_login>","type":"e-mail","password":"WRONG_xyz999"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'404'}], snapshot_config:null },
-
-  { id:22, suite:1, name:'Негативный: запрос без токена',    sort:220, method:'POST', url:'/drive',  group:'',              tags:'negative',        depends_on:0,  u_a_role:0,
-    params:'{"token":"invalid","u_hash":"invalid","u_a_role":"2","data":"{\"patient_id\":\"1\",\"type\":\"primary\"}"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'404'}], snapshot_config:null },
-
-  { id:23, suite:1, name:'Негативный: несуществующий приём', sort:230, method:'POST', url:'/drive/get/99999999', group:'', tags:'negative', depends_on:2, u_a_role:2,
-    params:'{"action":"set_cancel_state","reason":"test"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'404'}], snapshot_config:null },
-
-  { id:24, suite:1, name:'Cleanup: отмена тестового приёма', sort:240, method:'POST', url:'/drive/get/<b_id>', group:'cleanup', tags:'chain,auth', depends_on:12, u_a_role:2,
-    params:'{"action":"set_cancel_state","reason":"autotest cleanup","notify_patient":"false"}',
-    state_save:'{}', validations:[{type:'eq',field:'code',value:'200'}],
-    snapshot_config:[{label:'Отменённый приём',method:'GET',url:'/drive/get/<b_id>'}] },
-];
+// Нормализовать строку БД → объект кейса
+function normalizeCase(row) {
+  return {
+    id:              Number(row.id),
+    suite:           Number(row.id_api_test_suite),
+    name:            row.name || '',
+    description:     row.description || '',
+    sort:            Number(row.sort) || 0,
+    method:          row.method || 'GET',
+    url:             row.url || '',
+    params:          row.params || '{}',
+    u_a_role:        Number(row.u_a_role) || 0,
+    depends_on:      Number(row.depends_on) || 0,
+    group:           row.chain_group || '',
+    state_save:      row.state_save || '{}',
+    validations:     tryParse(row.validations, []),
+    snapshot_config: tryParse(row.snapshot_config, null),
+    tags:            row.tags || '',
+    active:          Number(row.active),
+  };
+}
 
 // ════════════════════════════════════════════════════════════
-//  INIT
+//  INIT — авторизация → загрузка наборов → загрузка кейсов
 // ════════════════════════════════════════════════════════════
-function init() {
-  S.suites = BUILTIN_SUITES;
-  S.cases  = BUILTIN_CASES;
+async function init() {
+  setRunStatus('running', 'Авторизация...');
+  setTreeLoading(true);
+
+  try {
+    const { baseUrl, login, password } = cfg();
+
+    // Шаг 1: auth_hash
+    const d1 = await apiPost('/auth/', { login, type: 'e-mail', password });
+    if (d1.code !== '200' || !d1.auth_hash)
+      throw new Error(d1.message || 'auth step 1 failed');
+
+    // Шаг 2: token
+    const d2 = await apiPost('/token', { auth_hash: d1.auth_hash });
+    if (d2.code !== '200' || !d2.data?.token)
+      throw new Error(d2.message || 'auth step 2 failed');
+
+    S.state.token  = d2.data.token;
+    S.state.u_hash = d2.data.u_hash;
+    S.state.u_id   = d2.data.u_id;
+    setRunStatus('pass', `Авторизован (u_id: ${d2.data.u_id})`);
+    toast('Авторизация успешна', 'success');
+
+  } catch(e) {
+    setRunStatus('fail', `Ошибка авторизации: ${e.message}`);
+    toast(`Авторизация: ${e.message}`, 'error');
+    setTreeLoading(false);
+    return;
+  }
+
+  // Загрузка наборов (шаблон 101)
+  try {
+    const rows = await queryTemplate(101);
+    S.suites = rows.map(r => ({
+      id:          Number(r.id),
+      name:        r.name,
+      description: r.description || '',
+      domain:      r.domain || 'medical',
+      base_url:    r.base_url || cfg().baseUrl,
+      sort:        Number(r.sort) || 0,
+    }));
+    toast(`Наборов загружено: ${S.suites.length}`, 'info');
+  } catch(e) {
+    toast(`Ошибка загрузки наборов: ${e.message}`, 'error');
+    S.suites = [];
+  }
+
+  setTreeLoading(false);
   renderTree();
-  selectSuite(1);
+
+  if (S.suites.length > 0) {
+    await selectSuite(S.suites[0].id);
+  }
+}
+
+function setTreeLoading(on) {
+  if (!on) return;
+  document.getElementById('suiteTree').innerHTML = `
+    <div class="empty-state" style="height:120px">
+      <div class="no-results-icon" style="font-size:22px;opacity:.5">⏳</div>
+      <div class="no-results-text">Загрузка из БД...</div>
+    </div>`;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1093,12 +1142,25 @@ function renderTree() {
   });
 }
 
-function selectSuite(id) {
+async function selectSuite(id) {
   S.activeSuite = S.suites.find(s => s.id === id);
   S.activeCase  = null;
+  S.cases = [];
+  renderTree();
+  document.getElementById('editorBody').innerHTML = `<div class="empty-state"><div class="empty-state-icon">✏️</div><div class="empty-state-text">Загрузка кейсов...</div></div>`;
+  document.getElementById('editorActions').style.display = 'none';
+
+  try {
+    const rows = await queryTemplate(102, { suite_id: id });
+    S.cases = rows.map(normalizeCase);
+    toast(`Кейсов загружено: ${S.cases.length}`, 'info');
+  } catch(e) {
+    toast(`Ошибка загрузки кейсов: ${e.message}`, 'error');
+    S.cases = [];
+  }
+
   renderTree();
   document.getElementById('editorBody').innerHTML = `<div class="empty-state"><div class="empty-state-icon">✏️</div><div class="empty-state-text">Выберите тест-кейс</div></div>`;
-  document.getElementById('editorActions').style.display = 'none';
 }
 
 function selectCase(id) {
@@ -1289,46 +1351,95 @@ function newCase() {
   renderEditor();
 }
 
-function saveCase() {
+async function saveCase() {
   if (!S.editingCase) return;
   const vals = collectEditorValues();
   Object.assign(S.editingCase, vals);
-  // update in array
-  const idx = S.cases.findIndex(c => c.id === S.editingCase.id);
-  if (idx >= 0) S.cases[idx] = { ...S.editingCase };
-  S.activeCase = S.editingCase;
+
+  const c = S.editingCase;
+  try {
+    await queryTemplate(104, {
+      case_id:       c.id || 0,
+      suite_id:      c.suite,
+      name:          c.name,
+      description:   c.description || '',
+      sort:          c.sort || 0,
+      method:        c.method,
+      url:           c.url,
+      params:        c.params || '{}',
+      u_a_role:      c.u_a_role || 0,
+      depends_on:    c.depends_on || 0,
+      chain_group:   c.group || '',
+      state_save:    typeof c.state_save === 'object' ? JSON.stringify(c.state_save) : (c.state_save || '{}'),
+      validations:   JSON.stringify(Array.isArray(c.validations) ? c.validations : []),
+      snapshot_config: c.snapshot_config ? JSON.stringify(c.snapshot_config) : '',
+      tags:          c.tags || '',
+      active:        1,
+      user_id:       S.state.u_id || 0,
+    });
+    toast('Тест-кейс сохранён в БД', 'success');
+  } catch(e) {
+    toast(`Ошибка сохранения: ${e.message}`, 'error');
+  }
+
+  // Перезагрузить кейсы чтобы получить id из БД если новый
+  if (S.activeSuite) {
+    try {
+      const rows = await queryTemplate(102, { suite_id: S.activeSuite.id });
+      S.cases = rows.map(normalizeCase);
+    } catch(e) { /* ignore */ }
+  }
+
+  S.activeCase = S.cases.find(c2 => c2.name === c.name && c2.suite === c.suite) || S.editingCase;
   renderTree();
-  toast('Тест-кейс сохранён', 'success');
-  // TODO: POST /query/template/104 (save_case) when DB integration enabled
 }
 
-function deleteCase() {
+async function deleteCase() {
   if (!S.editingCase) return;
   if (!confirm(`Удалить "${S.editingCase.name}"?`)) return;
+  try {
+    await queryTemplate(105, { case_id: S.editingCase.id });
+    toast('Кейс удалён из БД', 'info');
+  } catch(e) {
+    toast(`Ошибка удаления: ${e.message}`, 'error');
+    return;
+  }
   S.cases = S.cases.filter(c => c.id !== S.editingCase.id);
   S.editingCase = null; S.activeCase = null;
   document.getElementById('editorBody').innerHTML = `<div class="empty-state"><div class="empty-state-icon">✏️</div><div class="empty-state-text">Выберите тест-кейс</div></div>`;
   document.getElementById('editorActions').style.display = 'none';
   renderTree();
-  toast('Кейс удалён', 'info');
 }
 
 function newSuite() { openModal('suiteModal'); }
 
-function createSuite() {
+async function createSuite() {
   const name = document.getElementById('suiteModalName').value.trim();
   if (!name) { toast('Введите название', 'error'); return; }
-  const id = Math.max(0, ...S.suites.map(s => s.id)) + 1;
-  S.suites.push({
-    id, name,
-    domain:      document.getElementById('suiteModalDomain').value,
-    description: document.getElementById('suiteModalDesc').value,
-    base_url:    cfg().baseUrl,
-  });
+  const domain      = document.getElementById('suiteModalDomain').value;
+  const description = document.getElementById('suiteModalDesc').value;
+  const base_url    = cfg().baseUrl;
+  try {
+    await queryTemplate(106, {
+      suite_id: 0, name, description, domain,
+      base_url, sort: S.suites.length * 10,
+      active: 1, user_id: S.state.u_id || 0,
+    });
+    toast('Набор создан в БД', 'success');
+    // Перезагрузить список
+    const rows = await queryTemplate(101);
+    S.suites = rows.map(r => ({
+      id: Number(r.id), name: r.name, description: r.description || '',
+      domain: r.domain, base_url: r.base_url || base_url, sort: Number(r.sort),
+    }));
+  } catch(e) {
+    toast(`Ошибка создания набора: ${e.message}`, 'error');
+    return;
+  }
   closeModal('suiteModal');
   renderTree();
-  selectSuite(id);
-  toast('Набор создан', 'success');
+  const newSuite = S.suites.find(s => s.name === name);
+  if (newSuite) await selectSuite(newSuite.id);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1906,6 +2017,31 @@ document.addEventListener('keydown', e => {
   if (e.key === 'F5' && !e.target.matches('input,textarea')) { e.preventDefault(); startRun('auto'); }
   if (e.key === 'ArrowRight' && S.run.active && S.run.mode === 'step') { e.preventDefault(); stepNext(); }
 });
+
+// ════════════════════════════════════════════════════════════
+//  THEME
+// ════════════════════════════════════════════════════════════
+function toggleTheme() {
+  const root = document.documentElement;
+  const isLight = root.classList.toggle('light');
+  document.getElementById('themeIcon').textContent      = isLight ? '☀️' : '🌙';
+  document.getElementById('themeIconRight').textContent = isLight ? '🌙' : '☀️';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+
+// Восстановить тему из localStorage
+(function() {
+  if (localStorage.getItem('theme') === 'light') {
+    document.documentElement.classList.add('light');
+    // иконки обновятся после рендера DOM
+    document.addEventListener('DOMContentLoaded', () => {
+      const i1 = document.getElementById('themeIcon');
+      const i2 = document.getElementById('themeIconRight');
+      if (i1) i1.textContent = '☀️';
+      if (i2) i2.textContent = '🌙';
+    });
+  }
+})();
 
 // ════════════════════════════════════════════════════════════
 //  BOOT
