@@ -1165,12 +1165,17 @@ async function init() {
 }
 
 function setTreeLoading(on) {
-  if (!on) return;
-  document.getElementById('suiteTree').innerHTML = `
-    <div class="empty-state" style="height:120px">
-      <div class="no-results-icon" style="font-size:22px;opacity:.5">⏳</div>
-      <div class="no-results-text">Загрузка из БД...</div>
-    </div>`;
+  const el = document.getElementById('suiteTree');
+
+  if (on) {
+    el.innerHTML = `
+      <div class="empty-state" style="height:120px">
+        <div class="no-results-icon" style="font-size:22px;opacity:.5">⏳</div>
+        <div class="no-results-text">Загрузка из БД...</div>
+      </div>`;
+  } else {
+    el.innerHTML = '';
+  }
 }
 
 // ════════════════════════════════════════════════════════════
