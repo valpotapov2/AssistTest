@@ -959,7 +959,6 @@ async function login() {
       throw new Error('Введите логин и пароль');
     }
 
-    // Шаг 1 — auth
     const d1 = await apiPost('/auth/', {
       login,
       type: 'e-mail',
@@ -967,22 +966,20 @@ async function login() {
     });
 
     if (d1.code !== '200' || !d1.auth_hash) {
-      throw new Error(d1.message || 'auth failed');
+      throw new Error(d1.message || 'auth step failed');
     }
 
-    // Шаг 2 — token (использует PHP session)
     const d2 = await apiPost('/token', {
       auth_hash: d1.auth_hash
     });
 
     if (d2.code !== '200' || !d2.data?.token) {
-      throw new Error(d2.message || 'token failed');
+      throw new Error(d2.message || 'token step failed');
     }
 
-    // ВАЖНО: структура backend
     S.state.token  = d2.data.token;
     S.state.u_hash = d2.data.u_hash;
-    S.state.u_id   = d2.auth_user?.u_id || null;
+    S.state.u_id   = d2.data.u_id || d2.data.id || null;
 
     setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
     toast('Авторизация успешна', 'success');
@@ -1059,28 +1056,20 @@ function cfg() {
 async function apiPost(url, bodyObj) {
   const { baseUrl } = cfg();
   const body = new URLSearchParams(bodyObj);
-
   const resp = await fetch(baseUrl + url, {
     method: 'POST',
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
-
   return resp.json();
 }
 
 async function apiGet(url, params = {}) {
   const { baseUrl, token, u_hash } = cfg();
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
-
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
     headers: { 'Accept': 'application/json' },
   });
-
   return resp.json();
 }
 
