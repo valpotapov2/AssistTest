@@ -1440,7 +1440,9 @@ function collectEditorValues() {
     snapshot_config: tryParse(document.getElementById('ef-snapshot')?.value, null),
     tags:          document.getElementById('ef-tags')?.value || '',
     sort:          parseInt(document.getElementById('ef-sort')?.value) || 0,
-    u_a_role:      S.editingCase?.u_a_role || 0,
+    u_a_role: document.querySelector('.role-opt.selected input')?.value
+  ? Number(document.querySelector('.role-opt.selected input').value)
+  : 0,
   };
 }
 
