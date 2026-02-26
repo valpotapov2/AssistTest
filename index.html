@@ -2250,13 +2250,17 @@ function toggleTheme() {
   const cols = [];
   const handles = ws.querySelectorAll('.resize-handle');
 
-  // сначала скрываем все handles
   handles.forEach(h => h.style.display = 'none');
 
-  let visibleIndexes = [];
-
+  const visibleIndexes = [];
   for (let i = 0; i < 4; i++) {
     if (visible[i]) visibleIndexes.push(i);
+  }
+
+  // ✅ Если осталась одна панель — растягиваем её
+  if (visibleIndexes.length === 1) {
+    ws.style.gridTemplateColumns = '1fr';
+    return;
   }
 
   visibleIndexes.forEach((panelIndex, idx) => {
@@ -2264,15 +2268,11 @@ function toggleTheme() {
     // ширина панели
     cols.push(sizes[panelIndex] ? sizes[panelIndex] + 'px' : '1fr');
 
-    // если не последняя видимая панель — включаем handle
+    // включаем handle если есть следующая панель
     if (idx < visibleIndexes.length - 1) {
 
-      const handleIndex = panelIndex;
-      const handle = handles[handleIndex];
-
-      if (handle) {
-        handle.style.display = 'block';
-      }
+      const handle = handles[panelIndex];
+      if (handle) handle.style.display = 'block';
 
       cols.push('6px');
     }
