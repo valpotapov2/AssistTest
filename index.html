@@ -1486,7 +1486,7 @@ async function saveCase() {
       chain_group:   c.group || '',
       state_save:    typeof c.state_save === 'object' ? JSON.stringify(c.state_save) : (c.state_save || '{}'),
       validations:   JSON.stringify(Array.isArray(c.validations) ? c.validations : []),
-      snapshot_config: c.snapshot_config ? JSON.stringify(c.snapshot_config) : '',
+      snapshot_config: c.snapshot_config ? JSON.stringify(c.snapshot_config) : null,
       tags:          c.tags || '',
       active:        1,
       user_id:       S.state.u_id || 0,
