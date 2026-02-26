@@ -795,6 +795,12 @@ body {
 .resize-handle:hover {
   background: var(--border2);
 }  
+/* ───────── PANEL TOGGLE ACTIVE STATE ───────── */
+.panel-toggle-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
 </style>
 </head>
 <body>
@@ -820,10 +826,10 @@ body {
   <button class="btn small" onclick="login()">Войти</button>
   <button class="btn small" onclick="logout()">Выйти</button>
   <button class="btn small" onclick="loadSuites()">Загрузить</button>
-  <button class="btn small" onclick="togglePanel(1)">1</button>
-  <button class="btn small" onclick="togglePanel(2)">2</button>
-  <button class="btn small" onclick="togglePanel(3)">3</button>
-  <button class="btn small" onclick="togglePanel(4)">4</button>
+  <button class="btn small panel-toggle-btn active" data-panel="1" onclick="togglePanel(1)">1</button>
+  <button class="btn small panel-toggle-btn active" data-panel="2" onclick="togglePanel(2)">2</button>
+  <button class="btn small panel-toggle-btn active" data-panel="3" onclick="togglePanel(3)">3</button>
+  <button class="btn small panel-toggle-btn active" data-panel="4" onclick="togglePanel(4)">4</button>
   <div class="theme-toggle" onclick="toggleTheme()" title="Сменить тему">
     <span class="theme-toggle-icon" id="themeIcon">🌙</span>
     <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
@@ -2289,14 +2295,20 @@ function toggleTheme() {
 
   // --- Toggle API ---
   window.togglePanel = function(index){
-    if (index < 1 || index > 4) return;
-    const i = index - 1;
 
-    visible[i] = !visible[i];
-    panels[i].style.display = visible[i] ? 'flex' : 'none';
-
-    buildGrid();
-  };
+  if (index < 1 || index > 4) return;
+  const i = index - 1;
+  visible[i] = !visible[i];
+  panels[i].style.display = visible[i] ? 'flex' : 'none';
+  // ─── Обновляем цвет кнопки ───
+  const btn = document.querySelector(
+    '.panel-toggle-btn[data-panel="' + index + '"]'
+  );
+  if (btn) {
+    btn.classList.toggle('active', visible[i]);
+  }
+  buildGrid();
+};
 
 })();
 // ════════════════════════════════════════════════════════════
