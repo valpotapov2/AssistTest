@@ -2247,9 +2247,7 @@ function toggleTheme() {
 
   function buildGrid() {
 
-  const cols = [];
   const handles = ws.querySelectorAll('.resize-handle');
-
   handles.forEach(h => h.style.display = 'none');
 
   const visibleIndexes = [];
@@ -2257,24 +2255,45 @@ function toggleTheme() {
     if (visible[i]) visibleIndexes.push(i);
   }
 
-  // ✅ Если осталась одна панель — растягиваем её
-  if (visibleIndexes.length === 1) {
+  // если ни одной панели
+  if (visibleIndexes.length === 0) {
     ws.style.gridTemplateColumns = '1fr';
     return;
   }
 
+  // если одна панель — растянуть
+  if (visibleIndexes.length === 1) {
+    ws.style.gridTemplateColumns = '1fr';
+
+    panels.forEach(p => p.style.gridColumn = '');
+    panels[visibleIndexes[0]].style.gridColumn = '1';
+
+    return;
+  }
+
+  const cols = [];
+  let colIndex = 1;
+
   visibleIndexes.forEach((panelIndex, idx) => {
 
-    // ширина панели
+    // ширина
     cols.push(sizes[panelIndex] ? sizes[panelIndex] + 'px' : '1fr');
 
-    // включаем handle если есть следующая панель
+    // назначаем явную колонку панели
+    panels[panelIndex].style.gridColumn = colIndex;
+    colIndex++;
+
+    // если не последняя — добавляем handle
     if (idx < visibleIndexes.length - 1) {
 
       const handle = handles[panelIndex];
-      if (handle) handle.style.display = 'block';
+      if (handle) {
+        handle.style.display = 'block';
+        handle.style.gridColumn = colIndex;
+      }
 
       cols.push('6px');
+      colIndex++;
     }
   });
 
