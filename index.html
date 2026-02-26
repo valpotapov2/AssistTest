@@ -783,6 +783,18 @@ body {
 .toast.success { border-color: var(--green); color: var(--green); }
 .toast.error   { border-color: var(--red);   color: var(--red); }
 .toast.info    { border-color: var(--accent); color: var(--accent2); }
+/* ───────── RESIZE HANDLES ───────── */
+.workspace {
+  position: relative;
+}
+.resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+}
+.resize-handle:hover {
+  background: var(--border2);
+}  
 </style>
 </head>
 <body>
@@ -808,6 +820,10 @@ body {
   <button class="btn small" onclick="login()">Войти</button>
   <button class="btn small" onclick="logout()">Выйти</button>
   <button class="btn small" onclick="loadSuites()">Загрузить</button>
+  <button class="btn small" onclick="togglePanel(1)">1</button>
+  <button class="btn small" onclick="togglePanel(2)">2</button>
+  <button class="btn small" onclick="togglePanel(3)">3</button>
+  <button class="btn small" onclick="togglePanel(4)">4</button>
   <div class="theme-toggle" onclick="toggleTheme()" title="Сменить тему">
     <span class="theme-toggle-icon" id="themeIcon">🌙</span>
     <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
@@ -2200,7 +2216,89 @@ function toggleTheme() {
     });
   }
 })();
+/* ════════════════════════════════════════════════════════════
+   LAYOUT MANAGER (Resize + Toggle)
+   Не вмешивается в существующую логику
+════════════════════════════════════════════════════════════ */
 
+(function(){
+
+  const ws = document.querySelector('.workspace');
+  const panels = Array.from(ws.querySelectorAll('.panel'));
+
+  if (panels.length !== 4) return;
+
+  // --- Вставляем resize handles между панелями ---
+  for (let i = 0; i < 3; i++) {
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    handle.dataset.index = i;
+    panels[i].after(handle);
+  }
+
+  let sizes = [240, null, null, 340]; // стартовые
+  let visible = [true, true, true, true];
+
+  function buildGrid() {
+    const cols = [];
+
+    for (let i = 0; i < 4; i++) {
+      if (visible[i]) {
+        cols.push(sizes[i] ? sizes[i] + 'px' : '1fr');
+      }
+      if (i < 3 && visible[i] && visible[i+1]) {
+        cols.push('6px');
+      }
+    }
+
+    ws.style.gridTemplateColumns = cols.join(' ');
+  }
+
+  buildGrid();
+
+  // --- Resize ---
+  ws.querySelectorAll('.resize-handle').forEach(handle => {
+
+    handle.addEventListener('mousedown', e => {
+
+      const i = Number(handle.dataset.index);
+      const left  = panels[i];
+      const right = panels[i+1];
+
+      const startX = e.clientX;
+      const startLeft  = left.offsetWidth;
+      const startRight = right.offsetWidth;
+
+      function move(ev) {
+        const dx = ev.clientX - startX;
+        sizes[i]   = startLeft + dx;
+        sizes[i+1] = startRight - dx;
+        buildGrid();
+      }
+
+      function up() {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+      }
+
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+
+  });
+
+  // --- Toggle API ---
+  window.togglePanel = function(index){
+    if (index < 1 || index > 4) return;
+    const i = index - 1;
+
+    visible[i] = !visible[i];
+    panels[i].style.display = visible[i] ? 'flex' : 'none';
+
+    buildGrid();
+  };
+
+})();
 // ════════════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════════════
