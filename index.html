@@ -2246,19 +2246,40 @@ function toggleTheme() {
   let visible = [true, true, true, true];
 
   function buildGrid() {
-    const cols = [];
 
-    for (let i = 0; i < 4; i++) {
-      if (visible[i]) {
-        cols.push(sizes[i] ? sizes[i] + 'px' : '1fr');
-      }
-      if (i < 3 && visible[i] && visible[i+1]) {
-        cols.push('6px');
-      }
-    }
+  const cols = [];
+  const handles = ws.querySelectorAll('.resize-handle');
 
-    ws.style.gridTemplateColumns = cols.join(' ');
+  // сначала скрываем все handles
+  handles.forEach(h => h.style.display = 'none');
+
+  let visibleIndexes = [];
+
+  for (let i = 0; i < 4; i++) {
+    if (visible[i]) visibleIndexes.push(i);
   }
+
+  visibleIndexes.forEach((panelIndex, idx) => {
+
+    // ширина панели
+    cols.push(sizes[panelIndex] ? sizes[panelIndex] + 'px' : '1fr');
+
+    // если не последняя видимая панель — включаем handle
+    if (idx < visibleIndexes.length - 1) {
+
+      const handleIndex = panelIndex;
+      const handle = handles[handleIndex];
+
+      if (handle) {
+        handle.style.display = 'block';
+      }
+
+      cols.push('6px');
+    }
+  });
+
+  ws.style.gridTemplateColumns = cols.join(' ');
+}
 
   buildGrid();
 
