@@ -1489,7 +1489,7 @@ async function saveCase() {
       snapshot_config: c.snapshot_config ? JSON.stringify(c.snapshot_config) : null,
       tags:          c.tags || '',
       active:        1,
-      user_id:       S.state.u_id || 0,
+      user_id:       1, //S.state.u_id || 0,
     });
     toast('Тест-кейс сохранён в БД', 'success');
   } catch(e) {
