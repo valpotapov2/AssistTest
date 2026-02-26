@@ -1432,7 +1432,7 @@ function collectEditorValues() {
     description:   document.getElementById('ef-desc')?.value || '',
     method:        document.getElementById('ef-method')?.value || 'GET',
     url:           document.getElementById('ef-url')?.value || '',
-    params:        document.getElementById('ef-params')?.value || '{}',
+    params: JSON.stringify( JSON.parse(document.getElementById('ef-params')?.value || '{}') ),
     group:         document.getElementById('ef-chain')?.value || '',
     depends_on:    parseInt(document.getElementById('ef-depends')?.value) || 0,
     state_save:    document.getElementById('ef-state-save')?.value || '{}',
