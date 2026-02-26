@@ -976,6 +976,7 @@ const S = {
   state:    {},          // state переменных между шагами (<b_id> и т.д.)
   graphNodes: [],        // для панели 4
   previewTab: 'graph',
+  debug: { lastTemplateCall: null },
 };
 // ─────────────────────────────
 // LOGIN
@@ -1114,12 +1115,25 @@ async function queryTemplate(templateId, vars = {}) {
   if (vars && Object.keys(vars).length > 0) {
     payload.data = JSON.stringify(vars);
   }
-
-  const d = await apiPost(`/query/template/${templateId}`, payload);
-  if (d.code !== '200') throw new Error(d.message || `template ${templateId} error: ${JSON.stringify(d)}`);
-  return d.data; // массив строк из БД
+  // DEBUG capture
+  S.debug.lastTemplateCall = {
+    templateId,
+    payload: JSON.parse(JSON.stringify(payload)),
+    response: null,
+    error: null
+  };
+  try {
+    const d = await apiPost(`/query/template/${templateId}`, payload);
+    S.debug.lastTemplateCall.response = d;
+    if (d.code !== '200') {
+      throw new Error(d.message || `template ${templateId} error`);
+    }
+    return d.data;
+  } catch (e) {
+    S.debug.lastTemplateCall.error = e.message;
+    throw e;
+  }
 }
-
 // Нормализовать строку БД → объект кейса
 function normalizeCase(row) {
   return {
@@ -2000,6 +2014,7 @@ function renderPreview(result) {
               </div>`).join('')}
           </div>
         </div>
+        ${renderTemplateDebug()}
       </div>`;
     return;
   }
@@ -2351,6 +2366,27 @@ function toggleTheme() {
 };
 
 })();
+function renderTemplateDebug() {
+  const dbg = S.debug.lastTemplateCall;
+  if (!dbg) return '';
+  return `
+    <div class="req-section" style="margin-top:20px">
+      <div class="req-section-label" style="color:var(--yellow)">
+        Template Debug → /query/template/${dbg.templateId}
+      </div>
+      <div class="req-body json-view" style="max-height:240px">
+        <div><b>Payload:</b></div>
+        ${colorJson(dbg.payload)}
+        <div class="divider"></div>
+        ${
+          dbg.error
+            ? `<div style="color:var(--red)"><b>Error:</b> ${dbg.error}</div>`
+            : `<div><b>Response:</b></div>${colorJson(dbg.response)}`
+        }
+      </div>
+    </div>
+  `;
+}
 // ════════════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════════════
