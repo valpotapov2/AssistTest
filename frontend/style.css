@@ -792,3 +792,47 @@ body {
   border-color: var(--accent);
   color: #fff;
 }
+
+/* ── DEBUG LOG (панель 4, таб Лог) ── */
+.debug-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text3);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+
+.debug-log-item {
+  border-bottom: 1px solid var(--border);
+}
+.debug-log-item.error .debug-log-row { border-left: 2px solid var(--red); }
+.debug-log-item.ok    .debug-log-row { border-left: 2px solid var(--green); }
+
+.debug-log-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.debug-log-row:hover { background: var(--bg3); }
+
+.debug-log-num  { font-size: 9px; color: var(--text3); min-width: 24px; }
+.debug-log-tpl  { font-size: 10px; color: var(--accent2); flex: 1; }
+.debug-log-time { font-size: 9px; color: var(--text3); }
+.debug-log-status { font-size: 10px; font-weight: 600; }
+.debug-log-status.pass { color: var(--green); }
+.debug-log-status.fail { color: var(--red); }
+
+.debug-log-body {
+  display: none;
+  padding: 8px 12px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+}
+.debug-log-body.open { display: block; }

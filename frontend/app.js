@@ -22,7 +22,7 @@ const S = {
   state:    {},          // state переменных между шагами (<b_id> и т.д.)
   graphNodes: [],        // для панели 4
   previewTab: 'graph',
-  debug: { lastTemplateCall: null },
+  debug: { calls: [] },
 };
 // ─────────────────────────────
 // LOGIN
@@ -164,22 +164,29 @@ async function queryTemplate(templateId, vars = {}) {
   if (vars && Object.keys(vars).length > 0) {
     payload.data = JSON.stringify(vars);
   }
-  // DEBUG capture
-  S.debug.lastTemplateCall = {
+
+  const entry = {
+    id:         S.debug.calls.length + 1,
     templateId,
-    payload: JSON.parse(JSON.stringify(payload)),
-    response: null,
-    error: null
+    time:       new Date().toLocaleTimeString(),
+    payload:    JSON.parse(JSON.stringify(payload)),
+    response:   null,
+    error:      null,
   };
+  S.debug.calls.push(entry);
+
   try {
     const d = await apiPost(`/query/template/${templateId}`, payload);
-    S.debug.lastTemplateCall.response = d;
+    entry.response = d;
     if (d.code !== '200') {
-      throw new Error(d.message || `template ${templateId} error`);
+      entry.error = d.message || `template ${templateId} error`;
+      throw new Error(entry.error);
     }
+    renderDebugLog();
     return d.data;
   } catch (e) {
-    S.debug.lastTemplateCall.error = e.message;
+    if (!entry.error) entry.error = e.message;
+    renderDebugLog();
     throw e;
   }
 }
@@ -989,9 +996,10 @@ function clearResults() {
 function switchPreviewTab(tab) {
   S.previewTab = tab;
   document.querySelectorAll('.preview-tab').forEach((el, i) => {
-    const tabs = ['graph', 'snapshot', 'request', 'state'];
+    const tabs = ['graph', 'snapshot', 'request', 'state', 'log'];
     el.classList.toggle('active', tabs[i] === tab);
   });
+  if (tab === 'log') { renderDebugLog(); return; }
   if (S.activeResult) renderPreview(S.activeResult);
   else renderPreviewEmpty(tab);
 }
@@ -1419,65 +1427,76 @@ function toggleTheme() {
 };
 
 })();
-function renderTemplateDebug() {
-  const dbg = S.debug.lastTemplateCall;
-  if (!dbg) return '';
-  return `
-    <div class="req-section" style="margin-top:20px">
-      <div class="req-section-label" style="color:var(--yellow)">
-        Template Debug → /query/template/${dbg.templateId}
-      </div>
-      <div class="req-body json-view" style="max-height:240px">
-        <div><b>Payload:</b></div>
-        ${colorJson(dbg.payload)}
-        <div class="divider"></div>
-        ${
-          dbg.error
-            ? `<div style="color:var(--red)"><b>Error:</b> ${dbg.error}</div>`
-            : `<div><b>Response:</b></div>${colorJson(dbg.response)}`
-        }
-      </div>
+function renderTemplateDebug() { return ''; } // оставлен для совместимости
+
+// ════════════════════════════════════════════════════════════
+//  DEBUG LOG (панель 4, таб: Лог)
+// ════════════════════════════════════════════════════════════
+function renderDebugLog() {
+  if (S.previewTab !== 'log') return;
+  const body = document.getElementById('previewBody');
+  const calls = S.debug.calls;
+
+  if (calls.length === 0) {
+    body.innerHTML = `
+      <div class="debug-log-header">
+        <span>Лог пуст</span>
+      </div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="debug-log-header">
+      <span>${calls.length} вызов(ов)</span>
+      <button class="btn small danger" onclick="clearDebugLog()">Очистить</button>
     </div>
-  `;
+    <div id="debugLogList"></div>`;
+
+  const list = document.getElementById('debugLogList');
+
+  // рендерим в обратном порядке — свежие сверху
+  [...calls].reverse().forEach(entry => {
+    const hasError = !!entry.error;
+    const item = document.createElement('div');
+    item.className = `debug-log-item ${hasError ? 'error' : 'ok'}`;
+    item.id = `dbg-${entry.id}`;
+    item.innerHTML = `
+      <div class="debug-log-row" onclick="toggleDebugEntry(${entry.id})">
+        <span class="debug-log-num">#${entry.id}</span>
+        <span class="debug-log-tpl">template/${entry.templateId}</span>
+        <span class="debug-log-time">${entry.time}</span>
+        <span class="debug-log-status ${hasError ? 'fail' : 'pass'}">${hasError ? '✗' : '✓'}</span>
+      </div>
+      <div class="debug-log-body" id="dbg-body-${entry.id}">
+        <div class="req-section">
+          <div class="req-section-label">Payload</div>
+          <div class="req-body json-view">${colorJson(entry.payload)}</div>
+        </div>
+        <div class="req-section">
+          <div class="req-section-label" style="color:${hasError ? 'var(--red)' : 'var(--green)'}">
+            ${hasError ? 'Ошибка' : 'Ответ'}
+          </div>
+          <div class="req-body json-view">${hasError
+            ? `<span style="color:var(--red)">${esc(entry.error)}</span>`
+            : colorJson(entry.response)
+          }</div>
+        </div>
+      </div>`;
+    list.appendChild(item);
+  });
 }
+
+function toggleDebugEntry(id) {
+  document.getElementById(`dbg-body-${id}`)?.classList.toggle('open');
+}
+
+function clearDebugLog() {
+  S.debug.calls = [];
+  renderDebugLog();
+}
+
 // ════════════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════════════
 // init();  // убрали автологин
 setRunStatus('idle', 'Не авторизован');
-  
-// ================= TEMPLATE DEBUG =================
-
-let templateDebugCounter = 0;
-
-function startTemplateDebugSession() {
-  templateDebugCounter++;
-}
-
-function clearTemplateDebug() {
-  const box = document.getElementById('template-debug');
-  if (!box) return;
-
-  box.innerHTML = '';
-  box.style.display = 'none';
-}
-
-function showTemplateDebug(message, type = 'info') {
-  const box = document.getElementById('template-debug');
-  if (!box) return;
-
-  const time = new Date().toLocaleTimeString();
-
-  box.style.display = 'block';
-
-  const color =
-    type === 'error' ? '#ff5555' :
-    type === 'warn'  ? '#f1fa8c' :
-                       '#8be9fd';
-
-  box.innerHTML =
-    `#${templateDebugCounter} | ${time}\n` +
-    message;
-
-  box.style.color = color;
-}
