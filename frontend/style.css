@@ -836,3 +836,13 @@ body {
   border-top: 1px solid var(--border);
 }
 .debug-log-body.open { display: block; }
+
+/* ── RECIPIENTS MODAL ── */
+.recipient-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.recipient-row:last-child { border-bottom: none; }

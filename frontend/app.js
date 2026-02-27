@@ -1475,7 +1475,11 @@ function renderDebugLog() {
   body.innerHTML = `
     <div class="debug-log-header">
       <span>${calls.length} вызов(ов)</span>
-      <button class="btn small danger" onclick="clearDebugLog()">Очистить</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn small" onclick="recipientsManager.openModal()" title="Настроить получателей">⚙️ Получатели</button>
+        <button class="btn small primary" id="btnSendDiag" onclick="sendDiagnostic(null)">📧 Отправить диагностику</button>
+        <button class="btn small danger" onclick="clearDebugLog()">Очистить</button>
+      </div>
     </div>
     <div id="debugLogList"></div>`;
 
@@ -1542,6 +1546,162 @@ function toggleDebugEntry(id) {
 function clearDebugLog() {
   S.debug.calls = [];
   renderDebugLog();
+}
+
+// ════════════════════════════════════════════════════════════
+//  RECIPIENTS MANAGER
+// ════════════════════════════════════════════════════════════
+const recipientsManager = {
+
+  _key: 'diagnosticRecipients',
+
+  load() {
+    try {
+      return JSON.parse(localStorage.getItem(this._key)) || [];
+    } catch(e) { return []; }
+  },
+
+  save() {
+    const rows = document.querySelectorAll('#recipientsTable .recipient-row');
+    const list = [];
+    rows.forEach(row => {
+      const name   = row.querySelector('.r-name').value.trim();
+      const email  = row.querySelector('.r-email').value.trim();
+      const active = row.querySelector('.r-active').checked;
+      if (email) list.push({ name, email, active });
+    });
+    localStorage.setItem(this._key, JSON.stringify(list));
+    closeModal('recipientsModal');
+    toast('Получатели сохранены', 'success');
+  },
+
+  openModal() {
+    const list = this.load();
+    const tbl  = document.getElementById('recipientsTable');
+    tbl.innerHTML = '';
+    list.forEach(r => this._appendRow(r));
+    openModal('recipientsModal');
+  },
+
+  addRow() {
+    this._appendRow({ name: '', email: '', active: true });
+  },
+
+  _appendRow(r) {
+    const tbl = document.getElementById('recipientsTable');
+    const div = document.createElement('div');
+    div.className = 'recipient-row';
+    div.innerHTML = `
+      <input class="input r-name"  placeholder="Имя"   value="${esc(r.name||'')}"  style="width:130px">
+      <input class="input r-email" placeholder="Email" value="${esc(r.email||'')}" style="flex:1">
+      <label style="display:flex;align-items:center;gap:4px;font-size:10px;white-space:nowrap">
+        <input type="checkbox" class="r-active" ${r.active ? 'checked' : ''}> Активен
+      </label>
+      <div class="remove-btn" onclick="this.parentElement.remove()">×</div>`;
+    tbl.appendChild(div);
+  },
+
+  activeEmails() {
+    return this.load().filter(r => r.active && r.email);
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  DIAGNOSTIC REPORT
+// ════════════════════════════════════════════════════════════
+function buildDiagnosticReport(entry) {
+  const version = (location.search.match(/v=(\d+)/) || [])[1] || '?';
+  const lines = [];
+
+  lines.push('══════════════════════════════════════');
+  lines.push(`API TEST — DIAGNOSTIC REPORT`);
+  lines.push(`Time:       ${new Date().toLocaleString()}`);
+  lines.push(`Tester v:   ${version}`);
+  lines.push(`UserAgent:  ${navigator.userAgent}`);
+  lines.push(`BASE URL:   ${cfg().baseUrl}`);
+  lines.push(`LOGIN:      ${cfg().login}`);
+  lines.push('══════════════════════════════════════');
+  lines.push('');
+
+  if (entry) {
+    lines.push(`Template:   /query/template/${entry.templateId}`);
+    lines.push(`Call time:  ${entry.time}`);
+    lines.push(`Status:     ${entry.error ? '✗ ERROR' : '✓ OK'}`);
+    lines.push('');
+    lines.push('── PAYLOAD ──────────────────────────');
+    lines.push(JSON.stringify(entry.payload, null, 2));
+    lines.push('');
+
+    if (entry.payload?.data) {
+      lines.push('── PAYLOAD.DATA (string) ────────────');
+      lines.push(entry.payload.data);
+      lines.push('');
+      try {
+        lines.push('── PAYLOAD.DATA (parsed) ────────────');
+        lines.push(JSON.stringify(JSON.parse(entry.payload.data), null, 2));
+        lines.push('');
+      } catch(e) { lines.push('(not valid JSON)\n'); }
+    }
+
+    lines.push('── RAW RESPONSE ─────────────────────');
+    lines.push(entry.raw || '(empty)');
+    lines.push('');
+
+    if (entry.parsed) {
+      lines.push('── PARSED JSON ──────────────────────');
+      lines.push(JSON.stringify(entry.parsed, null, 2));
+      lines.push('');
+    }
+
+    if (entry.error) {
+      lines.push('── ERROR ────────────────────────────');
+      lines.push(entry.error);
+      lines.push('');
+    }
+  }
+
+  lines.push('── FULL CALL LOG ────────────────────');
+  S.debug.calls.forEach(c => {
+    lines.push(`#${c.id} template/${c.templateId} ${c.time} ${c.error ? '✗ ' + c.error : '✓'}`);
+  });
+
+  return lines.join('\n');
+}
+
+async function sendDiagnostic(entryId) {
+  const recipients = recipientsManager.activeEmails();
+  if (recipients.length === 0) {
+    toast('Нет активных получателей. Настройте список.', 'error');
+    recipientsManager.openModal();
+    return;
+  }
+
+  const entry = entryId != null
+    ? S.debug.calls.find(c => c.id === entryId)
+    : S.debug.calls[S.debug.calls.length - 1];
+
+  const report = buildDiagnosticReport(entry);
+  const subject = `API Test Diagnostic — template/${entry?.templateId || '?'} — ${new Date().toLocaleString()}`;
+
+  const btn = document.getElementById('btnSendDiag');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Отправка...'; }
+
+  try {
+    await queryTemplate(900, {
+      subject,
+      body:       report,
+      recipients: JSON.stringify(recipients.map(r => r.email)),
+    });
+    toast('Диагностика отправлена', 'success');
+  } catch(e) {
+    if (e.message?.includes('not valid JSON') || e.message?.includes('template 900')) {
+      toast('Шаблон 900 не найден на сервере', 'error');
+    } else {
+      toast(`Ошибка отправки: ${e.message}`, 'error');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Отправить диагностику'; }
+  }
 }
 
 // ════════════════════════════════════════════════════════════
