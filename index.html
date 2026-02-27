@@ -991,6 +991,7 @@ async function login() {
       throw new Error('Введите логин и пароль');
     }
 
+    // Шаг 1 — auth
     const d1 = await apiPost('/auth/', {
       login,
       type: 'e-mail',
@@ -998,20 +999,22 @@ async function login() {
     });
 
     if (d1.code !== '200' || !d1.auth_hash) {
-      throw new Error(d1.message || 'auth step failed');
+      throw new Error(d1.message || 'auth failed');
     }
 
+    // Шаг 2 — token (использует PHP session)
     const d2 = await apiPost('/token', {
       auth_hash: d1.auth_hash
     });
 
     if (d2.code !== '200' || !d2.data?.token) {
-      throw new Error(d2.message || 'token step failed');
+      throw new Error(d2.message || 'token failed');
     }
 
+    // ВАЖНО: структура backend
     S.state.token  = d2.data.token;
     S.state.u_hash = d2.data.u_hash;
-    S.state.u_id = d2.data?.u_id || null;
+    S.state.u_id   = d2.auth_user?.u_id || null;
 
     setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
     toast('Авторизация успешна', 'success');
@@ -1092,7 +1095,8 @@ async function apiPost(url, bodyObj) {
   const { baseUrl } = cfg();
   const body = new URLSearchParams(bodyObj);
   const resp = await fetch(baseUrl + url, {
-    method: 'POST',    
+    method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
@@ -1102,7 +1106,8 @@ async function apiPost(url, bodyObj) {
 async function apiGet(url, params = {}) {
   const { baseUrl, token, u_hash } = cfg();
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
-  const resp = await fetch(`${baseUrl}${url}?${qs}`, {    
+  const resp = await fetch(`${baseUrl}${url}?${qs}`, {
+    credentials: 'include',
     headers: { 'Accept': 'application/json' },
   });
   return resp.json();
@@ -1511,42 +1516,24 @@ async function saveCase() {
  
 
     const payload = {
-        case_id: c.id || 0,
-        suite_id: c.suite,   // ВАЖНО: suite_id, не suiteId
-        name: c.name,
-        description: c.description || '',
-        sort: c.sort || 0,
-        method: c.method,
-        url: c.url,
-        params: c.params || '{}',
-        u_a_role: c.u_a_role || 0,
-        depends_on: c.depends_on || 0,
-        chain_group: c.group || '',
-        state_save: typeof c.state_save === 'object'
-            ? JSON.stringify(c.state_save)
-            : (c.state_save || '{}'),
-        validations: JSON.stringify(
-            Array.isArray(c.validations) ? c.validations : []
-        )
+      case_id:     c.id || 0,
+      suite_id:    c.suite,
+      name:        c.name,
+      description: c.description || '',
+      sort:        c.sort || 0,
+      method:      c.method,
+      url:         c.url,
+      params:      c.params || '{}',
+      u_a_role:    c.u_a_role || 0,
+      depends_on:  c.depends_on || 0,
+      chain_group: c.group || '',
+      state_save:  typeof c.state_save === 'object'
+        ? JSON.stringify(c.state_save)
+        : (c.state_save || '{}'),
+      validations: JSON.stringify(
+        Array.isArray(c.validations) ? c.validations : []
+      ),
     };
-
-    const template = S.templates[104];
-    const check = validateTemplateAndData(template, payload);
-
-    if (!check.ok) {
-        showTemplateDebug(
-            'TEMPLATE VALIDATION ERROR\n\n' +
-            'Missing: ' + (check.missing || []).join(', ') + '\n' +
-            'Extra: ' + (check.extra || []).join(', '),
-            'error'
-        );
-        return;
-    }
-
-    showTemplateDebug(
-        'SQL PREVIEW:\n\n' +
-        renderSqlPreview(template, payload)
-    );
 
     await queryTemplate(104, payload);
     toast('Тест-кейс сохранён в БД', 'success');
@@ -1593,15 +1580,15 @@ async function createSuite() {
   const base_url    = cfg().baseUrl;
   try {
     await queryTemplate(106, {
-  "{{suite_id}}": 0,
-  "{{name}}": name,
-  "{{description}}": description,
-  "{{domain}}": domain,
-  "{{base_url}}": base_url,
-  "{{sort}}": S.suites.length * 10,
-  "{{active}}": 1,
-  "{{user_id}}": S.state.u_id || 0,
-});
+      suite_id:    0,
+      name:        name,
+      description: description,
+      domain:      domain,
+      base_url:    base_url,
+      sort:        S.suites.length * 10,
+      active:      1,
+      user_id:     S.state.u_id || 0,
+    });
     toast('Набор создан в БД', 'success');
     // Перезагрузить список
     const rows = await queryTemplate(101);
