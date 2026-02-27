@@ -148,6 +148,17 @@ async function apiPost(url, bodyObj) {
   return resp.json();
 }
 
+// Версия без .json() — возвращает raw Response для text()-чтения
+async function apiPostRaw(url, bodyObj) {
+  const { baseUrl } = cfg();
+  const body = new URLSearchParams(bodyObj);
+  return fetch(baseUrl + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+}
+
 async function apiGet(url, params = {}) {
   const { baseUrl, token, u_hash } = cfg();
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
@@ -170,20 +181,36 @@ async function queryTemplate(templateId, vars = {}) {
     templateId,
     time:       new Date().toLocaleTimeString(),
     payload:    JSON.parse(JSON.stringify(payload)),
-    response:   null,
+    raw:        null,
+    parsed:     null,
     error:      null,
   };
   S.debug.calls.push(entry);
 
   try {
-    const d = await apiPost(`/query/template/${templateId}`, payload);
-    entry.response = d;
-    if (d.code !== '200') {
-      entry.error = d.message || `template ${templateId} error`;
+    const resp = await apiPostRaw(`/query/template/${templateId}`, payload);
+    const raw  = await resp.text();
+    entry.raw  = raw;
+
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch(e) { /* not json */ }
+    entry.parsed = parsed;
+
+    if (parsed === null) {
+      entry.error = 'Response is not valid JSON';
+      renderDebugLog();
       throw new Error(entry.error);
     }
+
+    if (parsed.code !== '200') {
+      entry.error = parsed.message || `template ${templateId} error`;
+      renderDebugLog();
+      throw new Error(entry.error);
+    }
+
     renderDebugLog();
-    return d.data;
+    return parsed.data;
+
   } catch (e) {
     if (!entry.error) entry.error = e.message;
     renderDebugLog();
@@ -1454,9 +1481,17 @@ function renderDebugLog() {
 
   const list = document.getElementById('debugLogList');
 
-  // рендерим в обратном порядке — свежие сверху
   [...calls].reverse().forEach(entry => {
     const hasError = !!entry.error;
+
+    // payload.data parsing
+    let payloadDataStr = null;
+    let payloadDataParsed = null;
+    if (entry.payload?.data) {
+      payloadDataStr = entry.payload.data;
+      try { payloadDataParsed = JSON.parse(payloadDataStr); } catch(e) {}
+    }
+
     const item = document.createElement('div');
     item.className = `debug-log-item ${hasError ? 'error' : 'ok'}`;
     item.id = `dbg-${entry.id}`;
@@ -1468,19 +1503,33 @@ function renderDebugLog() {
         <span class="debug-log-status ${hasError ? 'fail' : 'pass'}">${hasError ? '✗' : '✓'}</span>
       </div>
       <div class="debug-log-body" id="dbg-body-${entry.id}">
+
+        ${payloadDataStr ? `
         <div class="req-section">
-          <div class="req-section-label">Payload</div>
-          <div class="req-body json-view">${colorJson(entry.payload)}</div>
+          <div class="req-section-label" style="color:var(--cyan)">PAYLOAD.DATA (string)</div>
+          <div class="req-body json-view" style="word-break:break-all">${esc(payloadDataStr)}</div>
         </div>
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--cyan)">PAYLOAD.DATA (parsed)</div>
+          <div class="req-body json-view">${payloadDataParsed !== null ? colorJson(payloadDataParsed) : '<span style="color:var(--red)">not valid JSON</span>'}</div>
+        </div>` : ''}
+
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--yellow)">RAW RESPONSE</div>
+          <div class="req-body json-view" style="max-height:200px;word-break:break-all">${entry.raw !== null ? esc(entry.raw) : '<span style="color:var(--text3)">—</span>'}</div>
+        </div>
+
         <div class="req-section">
           <div class="req-section-label" style="color:${hasError ? 'var(--red)' : 'var(--green)'}">
-            ${hasError ? 'Ошибка' : 'Ответ'}
+            ${entry.parsed !== null ? 'PARSED JSON' : 'PARSED JSON — not valid'}
           </div>
-          <div class="req-body json-view">${hasError
-            ? `<span style="color:var(--red)">${esc(entry.error)}</span>`
-            : colorJson(entry.response)
+          <div class="req-body json-view" style="max-height:200px">${
+            entry.parsed !== null
+              ? colorJson(entry.parsed)
+              : `<span style="color:var(--red)">${esc(entry.error || 'Response is not valid JSON')}</span>`
           }</div>
         </div>
+
       </div>`;
     list.appendChild(item);
   });
