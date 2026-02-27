@@ -1014,7 +1014,8 @@ async function login() {
     // ВАЖНО: структура backend
     S.state.token  = d2.data.token;
     S.state.u_hash = d2.data.u_hash;
-    S.state.u_id   = d2.auth_user?.u_id || null;
+    //S.state.u_id   = d2.auth_user?.u_id || null;
+    S.state.u_id = d2.data?.u_id || null
 
     setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
     toast('Авторизация успешна', 'success');
