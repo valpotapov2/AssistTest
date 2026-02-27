@@ -959,7 +959,6 @@ async function login() {
       throw new Error('Введите логин и пароль');
     }
 
-    // Шаг 1 — auth
     const d1 = await apiPost('/auth/', {
       login,
       type: 'e-mail',
@@ -967,22 +966,20 @@ async function login() {
     });
 
     if (d1.code !== '200' || !d1.auth_hash) {
-      throw new Error(d1.message || 'auth failed');
+      throw new Error(d1.message || 'auth step failed');
     }
 
-    // Шаг 2 — token (использует PHP session)
     const d2 = await apiPost('/token', {
       auth_hash: d1.auth_hash
     });
 
     if (d2.code !== '200' || !d2.data?.token) {
-      throw new Error(d2.message || 'token failed');
+      throw new Error(d2.message || 'token step failed');
     }
 
-    // ВАЖНО: структура backend
     S.state.token  = d2.data.token;
     S.state.u_hash = d2.data.u_hash;
-    S.state.u_id   = d2.auth_user?.u_id || null;
+    S.state.u_id = d2.auth_user?.u_id || null;
 
     setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
     toast('Авторизация успешна', 'success');
@@ -1038,6 +1035,9 @@ async function loadSuites() {
   }
 
   setTreeLoading(false);
+  if (S.suites.length > 0) {
+    await selectSuite(S.suites[0].id);
+  }
 }
 // ════════════════════════════════════════════════════════════
 //  CONFIG
@@ -1059,38 +1059,32 @@ function cfg() {
 async function apiPost(url, bodyObj) {
   const { baseUrl } = cfg();
   const body = new URLSearchParams(bodyObj);
-
   const resp = await fetch(baseUrl + url, {
-    method: 'POST',
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
+    method: 'POST',    
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
-
   return resp.json();
 }
 
 async function apiGet(url, params = {}) {
   const { baseUrl, token, u_hash } = cfg();
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
-
-  const resp = await fetch(`${baseUrl}${url}?${qs}`, {
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
+  const resp = await fetch(`${baseUrl}${url}?${qs}`, {    
     headers: { 'Accept': 'application/json' },
   });
-
   return resp.json();
 }
 
 // Запрос к именованному SQL-шаблону
 async function queryTemplate(templateId, vars = {}) {
   const { token, u_hash } = cfg();
-  const d = await apiPost(`/query/template/${templateId}`, {
-    token, u_hash,
-    data: JSON.stringify(vars),
-  });
+  const payload = { token, u_hash };
+  if (vars && Object.keys(vars).length > 0) {
+    payload.data = JSON.stringify(vars);
+  }
+
+  const d = await apiPost(`/query/template/${templateId}`, payload);
   if (d.code !== '200') throw new Error(d.message || `template ${templateId} error: ${JSON.stringify(d)}`);
   return d.data; // массив строк из БД
 }
@@ -1260,7 +1254,7 @@ async function selectSuite(id) {
   document.getElementById('editorActions').style.display = 'none';
 
   try {
-    const rows = await queryTemplate(102, { suite_id: id });
+    const rows = await queryTemplate(102, { "{{suite_id}}": id });
     S.cases = rows.map(normalizeCase);
     toast(`Кейсов загружено: ${S.cases.length}`, 'info');
   } catch(e) {
@@ -1530,9 +1524,9 @@ async function createSuite() {
   const base_url    = cfg().baseUrl;
   try {
     await queryTemplate(106, {
-      suite_id: 0, name, description, domain,
-      base_url, sort: S.suites.length * 10,
-      active: 1, user_id: S.state.u_id || 0,
+      "{{suite_id}}": 0, "{{name}}": name, "{{description}}": description, "{{domain}}": domain,
+      "{{base_url}}": base_url, "{{sort}}": S.suites.length * 10,
+      "{{active}}": 1, "{{user_id}}": S.state.u_id || 0,
     });
     toast('Набор создан в БД', 'success');
     // Перезагрузить список

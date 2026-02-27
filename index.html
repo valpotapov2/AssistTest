@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>API Test — Medical Domain</title>
+<title>API Test — Medical Domain 0</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -538,6 +538,15 @@ body {
   color: var(--text3);
 }
 
+.result-resp-preview {
+  margin-top: 3px;
+  font-size: 9px;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  opacity: 0.85;
+}
+.result-resp-preview b { color: var(--accent2); }
+
 .no-results {
   display: flex;
   flex-direction: column;
@@ -774,6 +783,24 @@ body {
 .toast.success { border-color: var(--green); color: var(--green); }
 .toast.error   { border-color: var(--red);   color: var(--red); }
 .toast.info    { border-color: var(--accent); color: var(--accent2); }
+/* ───────── RESIZE HANDLES ───────── */
+.workspace {
+  position: relative;
+}
+.resize-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+}
+.resize-handle:hover {
+  background: var(--border2);
+}  
+/* ───────── PANEL TOGGLE ACTIVE STATE ───────── */
+.panel-toggle-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
 </style>
 </head>
 <body>
@@ -799,6 +826,10 @@ body {
   <button class="btn small" onclick="login()">Войти</button>
   <button class="btn small" onclick="logout()">Выйти</button>
   <button class="btn small" onclick="loadSuites()">Загрузить</button>
+  <button class="btn small panel-toggle-btn active" data-panel="1" onclick="togglePanel(1)">1</button>
+  <button class="btn small panel-toggle-btn active" data-panel="2" onclick="togglePanel(2)">2</button>
+  <button class="btn small panel-toggle-btn active" data-panel="3" onclick="togglePanel(3)">3</button>
+  <button class="btn small panel-toggle-btn active" data-panel="4" onclick="togglePanel(4)">4</button>
   <div class="theme-toggle" onclick="toggleTheme()" title="Сменить тему">
     <span class="theme-toggle-icon" id="themeIcon">🌙</span>
     <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
@@ -945,6 +976,7 @@ const S = {
   state:    {},          // state переменных между шагами (<b_id> и т.д.)
   graphNodes: [],        // для панели 4
   previewTab: 'graph',
+  debug: { lastTemplateCall: null },
 };
 // ─────────────────────────────
 // LOGIN
@@ -983,6 +1015,7 @@ async function login() {
     S.state.token  = d2.data.token;
     S.state.u_hash = d2.data.u_hash;
     S.state.u_id   = d2.auth_user?.u_id || null;
+    //S.state.u_id = d2.data?.u_id || null
 
     setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
     toast('Авторизация успешна', 'success');
@@ -1038,6 +1071,9 @@ async function loadSuites() {
   }
 
   setTreeLoading(false);
+  if (S.suites.length > 0) {
+    await selectSuite(S.suites[0].id);
+  }
 }
 // ════════════════════════════════════════════════════════════
 //  CONFIG
@@ -1062,10 +1098,8 @@ async function apiPost(url, bodyObj) {
 
   const resp = await fetch(baseUrl + url, {
     method: 'POST',
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
 
@@ -1077,7 +1111,7 @@ async function apiGet(url, params = {}) {
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
 
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
+    credentials: 'include',
     headers: { 'Accept': 'application/json' },
   });
 
@@ -1087,14 +1121,29 @@ async function apiGet(url, params = {}) {
 // Запрос к именованному SQL-шаблону
 async function queryTemplate(templateId, vars = {}) {
   const { token, u_hash } = cfg();
-  const d = await apiPost(`/query/template/${templateId}`, {
-    token, u_hash,
-    data: JSON.stringify(vars),
-  });
-  if (d.code !== '200') throw new Error(d.message || `template ${templateId} error: ${JSON.stringify(d)}`);
-  return d.data; // массив строк из БД
+  const payload = { token, u_hash };
+  if (vars && Object.keys(vars).length > 0) {
+    payload.data = JSON.stringify(vars);
+  }
+  // DEBUG capture
+  S.debug.lastTemplateCall = {
+    templateId,
+    payload: JSON.parse(JSON.stringify(payload)),
+    response: null,
+    error: null
+  };
+  try {
+    const d = await apiPost(`/query/template/${templateId}`, payload);
+    S.debug.lastTemplateCall.response = d;
+    if (d.code !== '200') {
+      throw new Error(d.message || `template ${templateId} error`);
+    }
+    return d.data;
+  } catch (e) {
+    S.debug.lastTemplateCall.error = e.message;
+    throw e;
+  }
 }
-
 // Нормализовать строку БД → объект кейса
 function normalizeCase(row) {
   return {
@@ -1260,7 +1309,7 @@ async function selectSuite(id) {
   document.getElementById('editorActions').style.display = 'none';
 
   try {
-    const rows = await queryTemplate(102, { suite_id: id });
+    const rows = await queryTemplate(102, {"{{suite_id}}": id });
     S.cases = rows.map(normalizeCase);
     toast(`Кейсов загружено: ${S.cases.length}`, 'info');
   } catch(e) {
@@ -1429,7 +1478,7 @@ function collectEditorValues() {
     description:   document.getElementById('ef-desc')?.value || '',
     method:        document.getElementById('ef-method')?.value || 'GET',
     url:           document.getElementById('ef-url')?.value || '',
-    params:        document.getElementById('ef-params')?.value || '{}',
+    params: JSON.stringify( JSON.parse(document.getElementById('ef-params')?.value || '{}') ),
     group:         document.getElementById('ef-chain')?.value || '',
     depends_on:    parseInt(document.getElementById('ef-depends')?.value) || 0,
     state_save:    document.getElementById('ef-state-save')?.value || '{}',
@@ -1437,7 +1486,9 @@ function collectEditorValues() {
     snapshot_config: tryParse(document.getElementById('ef-snapshot')?.value, null),
     tags:          document.getElementById('ef-tags')?.value || '',
     sort:          parseInt(document.getElementById('ef-sort')?.value) || 0,
-    u_a_role:      S.editingCase?.u_a_role || 0,
+    u_a_role: document.querySelector('.role-opt.selected input')?.value
+  ? Number(document.querySelector('.role-opt.selected input').value)
+  : 0,
   };
 }
 
@@ -1467,25 +1518,29 @@ async function saveCase() {
 
   const c = S.editingCase;
   try {
-    await queryTemplate(104, {
-      case_id:       c.id || 0,
-      suite_id:      c.suite,
-      name:          c.name,
-      description:   c.description || '',
-      sort:          c.sort || 0,
-      method:        c.method,
-      url:           c.url,
-      params:        c.params || '{}',
-      u_a_role:      c.u_a_role || 0,
-      depends_on:    c.depends_on || 0,
-      chain_group:   c.group || '',
-      state_save:    typeof c.state_save === 'object' ? JSON.stringify(c.state_save) : (c.state_save || '{}'),
-      validations:   JSON.stringify(Array.isArray(c.validations) ? c.validations : []),
-      snapshot_config: c.snapshot_config ? JSON.stringify(c.snapshot_config) : '',
-      tags:          c.tags || '',
-      active:        1,
-      user_id:       S.state.u_id || 0,
-    });
+ 
+
+    const payload = {
+      case_id:     c.id || 0,
+      suite_id:    c.suite,
+      name:        c.name,
+      description: c.description || '',
+      sort:        c.sort || 0,
+      method:      c.method,
+      url:         c.url,
+      params:      c.params || '{}',
+      u_a_role:    c.u_a_role || 0,
+      depends_on:  c.depends_on || 0,
+      chain_group: c.group || '',
+      state_save:  typeof c.state_save === 'object'
+        ? JSON.stringify(c.state_save)
+        : (c.state_save || '{}'),
+      validations: JSON.stringify(
+        Array.isArray(c.validations) ? c.validations : []
+      ),
+    };
+
+    await queryTemplate(104, payload);
     toast('Тест-кейс сохранён в БД', 'success');
   } catch(e) {
     toast(`Ошибка сохранения: ${e.message}`, 'error');
@@ -1530,9 +1585,14 @@ async function createSuite() {
   const base_url    = cfg().baseUrl;
   try {
     await queryTemplate(106, {
-      suite_id: 0, name, description, domain,
-      base_url, sort: S.suites.length * 10,
-      active: 1, user_id: S.state.u_id || 0,
+      suite_id:    0,
+      name:        name,
+      description: description,
+      domain:      domain,
+      base_url:    base_url,
+      sort:        S.suites.length * 10,
+      active:      1,
+      user_id:     S.state.u_id || 0,
     });
     toast('Набор создан в БД', 'success');
     // Перезагрузить список
@@ -1573,8 +1633,11 @@ async function startRun(mode) {
     runId: null,
   };
 
-  // Reset state but keep login creds if already have token
-  if (!S.state.token) S.state = {};
+  // Сохраняем токен между запусками, сбрасываем только контекстные переменные
+  if (!S.state.token) {
+  await login();
+  if (!S.state.token) return;
+}
 
   setRunStatus('running', 'Запуск...');
   updateProgress();
@@ -1777,15 +1840,32 @@ function validateCheck(v, data) {
   const val = getPath(data, v.field);
   let pass = false;
   switch(v.type) {
-    case 'eq':       pass = String(val) === String(v.value); break;
-    case 'neq':      pass = String(val) !== String(v.value); break;
-    case 'hasField': pass = val !== undefined && val !== null; break;
-    case 'notEmpty': pass = val !== undefined && val !== null && val !== '' && val !== 0; break;
-    case 'contains': pass = String(val||'').includes(v.value); break;
-    case 'gte':      pass = Number(val) >= Number(v.value); break;
-    case 'lte':      pass = Number(val) <= Number(v.value); break;
+    case 'eq':
+      pass = String(val) === String(v.value);
+      break;
+    case 'neq':
+      pass = String(val) !== String(v.value);
+      break;
+    case 'hasField':
+      pass = val !== undefined && val !== null;
+      break;
+    case 'notEmpty':
+      pass = val !== undefined && val !== null && val !== '' && val !== 0
+          && !(Array.isArray(val) && val.length === 0);
+      break;
+    case 'contains':
+      pass = String(val||'').includes(v.value);
+      break;
+    case 'gte': pass = Number(val) >= Number(v.value); break;
+    case 'lte': pass = Number(val) <= Number(v.value); break;
   }
-  return { ...v, pass, actual: val };
+  // actual — читаемое значение для отображения в UI
+  let actual = val;
+  if (val === undefined) actual = 'undefined';
+  else if (val === null)  actual = 'null';
+  else if (typeof val === 'object') actual = JSON.stringify(val).slice(0, 60);
+  else actual = String(val);
+  return { ...v, pass, actual };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1801,7 +1881,7 @@ function renderResultItem(result) {
   if (existing) existing.remove();
 
   const el = document.createElement('div');
-  el.className = `result-item ${result.status === S.activeResult?.caseId === result.caseId ? ' active' : ''}`;
+  el.className = `result-item ${S.activeResult?.caseId === result.caseId ? 'active' : ''}`;
   el.id = `ri-${result.caseId}`;
   el.onclick = () => selectResult(result);
 
@@ -1809,13 +1889,25 @@ function renderResultItem(result) {
     `<div class="check-pill ${v.pass ? 'pass' : 'fail'}">${v.pass ? '✓' : '✗'} ${v.type}:${v.field}${v.value ? '='+v.value : ''}</div>`
   ).join('');
 
+  // Краткий превью ответа API прямо в карточке
+  const rb = result.responseBody;
+  let respPreview = '';
+  if (rb) {
+    const code = rb.code || rb.status || '?';
+    const msg  = rb.message || rb.error || rb.msg || '';
+    respPreview = `<div class="result-resp-preview">← code:<b>${code}</b>${msg ? ' · ' + String(msg).slice(0, 60) : ''}</div>`;
+  } else if (result.errorMessage) {
+    respPreview = `<div class="result-resp-preview" style="color:var(--red)">← ${result.errorMessage}</div>`;
+  }
+
   el.innerHTML = `
     <div class="result-header">
       <span class="result-name">${result.caseName}</span>
       <span class="result-badge ${result.status}">${result.status.toUpperCase()}</span>
     </div>
     <div class="result-checks">${checksHtml}</div>
-    <div class="result-timing">${result.durationMs}ms${result.errorMessage ? ' · ' + result.errorMessage : ''}</div>
+    ${respPreview}
+    <div class="result-timing">${result.durationMs}ms · ${result.requestUrl.replace(/.*\/api\/v\d/, '')}</div>
   `;
   list.appendChild(el);
   el.scrollIntoView({ block: 'nearest' });
@@ -1826,6 +1918,11 @@ function selectResult(result) {
   document.querySelectorAll('.result-item').forEach(el => {
     el.classList.toggle('active', el.id === `ri-${result.caseId}`);
   });
+  // При FAIL — автоматически открыть Запрос/Ответ для диагностики
+  if (result.status === 'fail' && S.previewTab === 'graph') {
+    switchPreviewTab('request');
+    return; // switchPreviewTab вызовет renderPreview
+  }
   renderPreview(result);
 }
 
@@ -1911,11 +2008,13 @@ function renderPreview(result) {
           <div class="req-body json-view">${colorJson(result.requestBody)}</div>
         </div>
         <div class="req-section">
-          <div class="req-section-label" style="display:flex;align-items:center">
-            Ответ (${result.httpStatus || '—'})
-            <button class="copy-btn" onclick="copyText(${JSON.stringify(JSON.stringify(result.responseBody))})">Copy</button>
+          <div class="req-section-label" style="display:flex;align-items:center;gap:6px">
+            Ответ
+            <span style="color:var(--text2);font-size:9px">HTTP ${result.httpStatus || '—'}</span>
+            ${result.responseBody?.code ? `<span style="color:${result.responseBody.code==='200'?'var(--green)':'var(--red)'};font-size:9px;font-weight:600">code: ${result.responseBody.code}</span>` : ''}
+            <button class="copy-btn" onclick="copyText(${JSON.stringify(JSON.stringify(result.responseBody))})">Copy JSON</button>
           </div>
-          <div class="req-body json-view">${colorJson(result.responseBody)}</div>
+          <div class="req-body json-view" style="max-height:300px">${colorJson(result.responseBody)}</div>
         </div>
         <div class="req-section">
           <div class="req-section-label">Валидации</div>
@@ -1929,6 +2028,7 @@ function renderPreview(result) {
               </div>`).join('')}
           </div>
         </div>
+        ${renderTemplateDebug()}
       </div>`;
     return;
   }
@@ -2024,13 +2124,13 @@ function toggleGraphNode(id) {
 // ════════════════════════════════════════════════════════════
 function resolveVars(str, state) {
   if (!str) return str;
-  return str.replace(/<([^>]+)>/g, (_, key) => {
+  return str.replace(/<([^>]+)>/g, (match, key) => {
     if (key.startsWith('cfg_')) {
       const cfgKey = key.slice(4);
       const c = cfg();
-      return c[cfgKey] || _;
+      return c[cfgKey] !== undefined ? c[cfgKey] : match;
     }
-    return state[key] !== undefined ? state[key] : _;
+    return state[key] !== undefined ? state[key] : match;
   });
 }
 
@@ -2151,13 +2251,197 @@ function toggleTheme() {
     });
   }
 })();
+/* ════════════════════════════════════════════════════════════
+   LAYOUT MANAGER (Resize + Toggle)
+   Не вмешивается в существующую логику
+════════════════════════════════════════════════════════════ */
 
+(function(){
+
+  const ws = document.querySelector('.workspace');
+  const panels = Array.from(ws.querySelectorAll('.panel'));
+
+  if (panels.length !== 4) return;
+
+  // --- Вставляем resize handles между панелями ---
+  for (let i = 0; i < 3; i++) {
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    handle.dataset.index = i;
+    panels[i].after(handle);
+  }
+
+  let sizes = [240, null, null, 340]; // стартовые
+  let visible = [true, true, true, true];
+
+  function buildGrid() {
+
+  const handles = ws.querySelectorAll('.resize-handle');
+  handles.forEach(h => h.style.display = 'none');
+
+  const visibleIndexes = [];
+  for (let i = 0; i < 4; i++) {
+    if (visible[i]) visibleIndexes.push(i);
+  }
+
+  // если ни одной панели
+  if (visibleIndexes.length === 0) {
+    ws.style.gridTemplateColumns = '1fr';
+    return;
+  }
+
+  // если одна панель — растянуть
+  if (visibleIndexes.length === 1) {
+    ws.style.gridTemplateColumns = '1fr';
+
+    panels.forEach(p => p.style.gridColumn = '');
+    panels[visibleIndexes[0]].style.gridColumn = '1';
+
+    return;
+  }
+
+  const cols = [];
+  let colIndex = 1;
+
+  visibleIndexes.forEach((panelIndex, idx) => {
+
+    // ширина
+    cols.push(sizes[panelIndex] ? sizes[panelIndex] + 'px' : '1fr');
+
+    // назначаем явную колонку панели
+    panels[panelIndex].style.gridColumn = colIndex;
+    colIndex++;
+
+    // если не последняя — добавляем handle
+    if (idx < visibleIndexes.length - 1) {
+
+      const handle = handles[panelIndex];
+      if (handle) {
+        handle.style.display = 'block';
+        handle.style.gridColumn = colIndex;
+      }
+
+      cols.push('6px');
+      colIndex++;
+    }
+  });
+
+  ws.style.gridTemplateColumns = cols.join(' ');
+}
+
+  buildGrid();
+
+  // --- Resize ---
+  ws.querySelectorAll('.resize-handle').forEach(handle => {
+
+    handle.addEventListener('mousedown', e => {
+
+      const i = Number(handle.dataset.index);
+      const left  = panels[i];
+      const right = panels[i+1];
+
+      const startX = e.clientX;
+      const startLeft  = left.offsetWidth;
+      const startRight = right.offsetWidth;
+
+      function move(ev) {
+        const dx = ev.clientX - startX;
+        sizes[i]   = startLeft + dx;
+        sizes[i+1] = startRight - dx;
+        buildGrid();
+      }
+
+      function up() {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+      }
+
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+
+  });
+
+  // --- Toggle API ---
+  window.togglePanel = function(index){
+
+  if (index < 1 || index > 4) return;
+  const i = index - 1;
+  visible[i] = !visible[i];
+  panels[i].style.display = visible[i] ? 'flex' : 'none';
+  // ─── Обновляем цвет кнопки ───
+  const btn = document.querySelector(
+    '.panel-toggle-btn[data-panel="' + index + '"]'
+  );
+  if (btn) {
+    btn.classList.toggle('active', visible[i]);
+  }
+  buildGrid();
+};
+
+})();
+function renderTemplateDebug() {
+  const dbg = S.debug.lastTemplateCall;
+  if (!dbg) return '';
+  return `
+    <div class="req-section" style="margin-top:20px">
+      <div class="req-section-label" style="color:var(--yellow)">
+        Template Debug → /query/template/${dbg.templateId}
+      </div>
+      <div class="req-body json-view" style="max-height:240px">
+        <div><b>Payload:</b></div>
+        ${colorJson(dbg.payload)}
+        <div class="divider"></div>
+        ${
+          dbg.error
+            ? `<div style="color:var(--red)"><b>Error:</b> ${dbg.error}</div>`
+            : `<div><b>Response:</b></div>${colorJson(dbg.response)}`
+        }
+      </div>
+    </div>
+  `;
+}
 // ════════════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════════════
 // init();  // убрали автологин
 setRunStatus('idle', 'Не авторизован');
+  
+// ================= TEMPLATE DEBUG =================
 
+let templateDebugCounter = 0;
+
+function startTemplateDebugSession() {
+  templateDebugCounter++;
+}
+
+function clearTemplateDebug() {
+  const box = document.getElementById('template-debug');
+  if (!box) return;
+
+  box.innerHTML = '';
+  box.style.display = 'none';
+}
+
+function showTemplateDebug(message, type = 'info') {
+  const box = document.getElementById('template-debug');
+  if (!box) return;
+
+  const time = new Date().toLocaleTimeString();
+
+  box.style.display = 'block';
+
+  const color =
+    type === 'error' ? '#ff5555' :
+    type === 'warn'  ? '#f1fa8c' :
+                       '#8be9fd';
+
+  box.innerHTML =
+    `#${templateDebugCounter} | ${time}\n` +
+    message;
+
+  box.style.color = color;
+}
 </script>
 </body>
 </html>
