@@ -1534,6 +1534,24 @@ function renderDebugLog() {
           }</div>
         </div>
 
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--purple)">
+            TEMPLATE (ID: ${entry.templateId})
+            <span id="tpl-status-${entry.id}" style="margin-left:8px;font-size:9px"></span>
+          </div>
+          <textarea
+            id="tpl-sql-${entry.id}"
+            class="textarea"
+            style="min-height:300px;font-family:var(--font-mono);font-size:10px;margin-top:4px"
+            placeholder="Нажмите «Загрузить» чтобы увидеть SQL..."
+            ${S.state.u_id ? '' : 'readonly'}
+          ></textarea>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button class="btn small" onclick="loadTemplate(${entry.templateId}, ${entry.id})">⟳ Загрузить</button>
+            ${S.state.u_id ? `<button class="btn small primary" onclick="saveTemplate(${entry.templateId}, ${entry.id})">💾 Сохранить шаблон</button>` : ''}
+          </div>
+        </div>
+
       </div>`;
     list.appendChild(item);
   });
@@ -1701,6 +1719,63 @@ async function sendDiagnostic(entryId) {
     }
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📧 Отправить диагностику'; }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  TEMPLATE EDITOR
+//  Шаблон 110 — получить SQL: SELECT value FROM sql_template WHERE id={{template_id}}
+//  Шаблон 111 — сохранить:   UPDATE sql_template SET value={{value}} WHERE id={{template_id}}
+// ════════════════════════════════════════════════════════════
+const TEMPLATE_GET_ID  = 110;
+const TEMPLATE_SAVE_ID = 111;
+
+function _tplStatus(entryId, msg, color) {
+  const el = document.getElementById(`tpl-status-${entryId}`);
+  if (el) { el.textContent = msg; el.style.color = color; }
+}
+
+async function loadTemplate(templateId, entryId) {
+  _tplStatus(entryId, '⏳ Загрузка...', 'var(--yellow)');
+  try {
+    const rows = await queryTemplate(TEMPLATE_GET_ID, { template_id: templateId });
+    if (!rows || rows.length === 0) {
+      _tplStatus(entryId, '✗ Шаблон не найден', 'var(--red)');
+      return;
+    }
+    const raw = rows[0].value;
+    let sql = raw;
+    try {
+      const obj = JSON.parse(raw);
+      sql = obj.code || raw;
+    } catch(e) { /* value не JSON — используем как есть */ }
+
+    const ta = document.getElementById(`tpl-sql-${entryId}`);
+    if (ta) ta.value = sql;
+    _tplStatus(entryId, '✓ Загружено', 'var(--green)');
+  } catch(e) {
+    _tplStatus(entryId, `✗ ${e.message}`, 'var(--red)');
+  }
+}
+
+async function saveTemplate(templateId, entryId) {
+  const ta = document.getElementById(`tpl-sql-${entryId}`);
+  if (!ta) return;
+  const sql = ta.value.trim();
+  if (!sql) { _tplStatus(entryId, '✗ SQL пуст', 'var(--red)'); return; }
+
+  _tplStatus(entryId, '⏳ Сохранение...', 'var(--yellow)');
+  try {
+    const newValue = JSON.stringify({ code: sql, only_admin: '1' });
+    await queryTemplate(TEMPLATE_SAVE_ID, {
+      template_id: templateId,
+      value:       newValue,
+    });
+    _tplStatus(entryId, '✓ Сохранено', 'var(--green)');
+    toast(`Шаблон ${templateId} сохранён`, 'success');
+  } catch(e) {
+    _tplStatus(entryId, `✗ ${e.message}`, 'var(--red)');
+    toast(`Ошибка сохранения шаблона: ${e.message}`, 'error');
   }
 }
 
