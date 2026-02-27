@@ -1508,25 +1508,47 @@ async function saveCase() {
 
   const c = S.editingCase;
   try {
-    await queryTemplate(104, {
-      case_id:       c.id || 0,
-      suite_id:      c.suite,
-      name:          c.name,
-      description:   c.description || '',
-      sort:          c.sort || 0,
-      method:        c.method,
-      url:           c.url,
-      params:        c.params || '{}',
-      u_a_role:      c.u_a_role || 0,
-      depends_on:    c.depends_on || 0,
-      chain_group:   c.group || '',
-      state_save:    typeof c.state_save === 'object' ? JSON.stringify(c.state_save) : (c.state_save || '{}'),
-      validations:   JSON.stringify(Array.isArray(c.validations) ? c.validations : []),
-      snapshot_config: JSON.stringify(c.snapshot_config || []),
-      tags:          c.tags || '',
-      active:        1,
-      user_id:       1, //S.state.u_id || 0,
-    });
+ 
+
+    const payload = {
+        case_id: c.id || 0,
+        suite_id: c.suite,   // ВАЖНО: suite_id, не suiteId
+        name: c.name,
+        description: c.description || '',
+        sort: c.sort || 0,
+        method: c.method,
+        url: c.url,
+        params: c.params || '{}',
+        u_a_role: c.u_a_role || 0,
+        depends_on: c.depends_on || 0,
+        chain_group: c.group || '',
+        state_save: typeof c.state_save === 'object'
+            ? JSON.stringify(c.state_save)
+            : (c.state_save || '{}'),
+        validations: JSON.stringify(
+            Array.isArray(c.validations) ? c.validations : []
+        )
+    };
+
+    const template = S.templates[104];
+    const check = validateTemplateAndData(template, payload);
+
+    if (!check.ok) {
+        showTemplateDebug(
+            'TEMPLATE VALIDATION ERROR\n\n' +
+            'Missing: ' + (check.missing || []).join(', ') + '\n' +
+            'Extra: ' + (check.extra || []).join(', '),
+            'error'
+        );
+        return;
+    }
+
+    showTemplateDebug(
+        'SQL PREVIEW:\n\n' +
+        renderSqlPreview(template, payload)
+    );
+
+    await queryTemplate(104, payload);
     toast('Тест-кейс сохранён в БД', 'success');
   } catch(e) {
     toast(`Ошибка сохранения: ${e.message}`, 'error');
@@ -2392,7 +2414,42 @@ function renderTemplateDebug() {
 // ════════════════════════════════════════════════════════════
 // init();  // убрали автологин
 setRunStatus('idle', 'Не авторизован');
+  
+// ================= TEMPLATE DEBUG =================
 
+let templateDebugCounter = 0;
+
+function startTemplateDebugSession() {
+  templateDebugCounter++;
+}
+
+function clearTemplateDebug() {
+  const box = document.getElementById('template-debug');
+  if (!box) return;
+
+  box.innerHTML = '';
+  box.style.display = 'none';
+}
+
+function showTemplateDebug(message, type = 'info') {
+  const box = document.getElementById('template-debug');
+  if (!box) return;
+
+  const time = new Date().toLocaleTimeString();
+
+  box.style.display = 'block';
+
+  const color =
+    type === 'error' ? '#ff5555' :
+    type === 'warn'  ? '#f1fa8c' :
+                       '#8be9fd';
+
+  box.innerHTML =
+    `#${templateDebugCounter} | ${time}\n` +
+    message;
+
+  box.style.color = color;
+}
 </script>
 </body>
 </html>
