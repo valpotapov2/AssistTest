@@ -1535,20 +1535,40 @@ function renderDebugLog() {
         </div>
 
         <div class="req-section">
-          <div class="req-section-label" style="color:var(--purple)">
-            TEMPLATE (ID: ${entry.templateId})
-            <span id="tpl-status-${entry.id}" style="margin-left:8px;font-size:9px"></span>
+          <div class="tpl-editor-header">
+            <span style="color:var(--purple);font-size:9px;font-family:var(--font-ui);letter-spacing:.08em;text-transform:uppercase">
+              TEMPLATE (ID: ${entry.templateId})
+            </span>
+            <span id="tpl-status-${entry.id}" class="tpl-status-badge"></span>
+            <span id="tpl-saved-time-${entry.id}" style="font-size:9px;color:var(--text3);margin-left:auto"></span>
           </div>
-          <textarea
-            id="tpl-sql-${entry.id}"
-            class="textarea"
-            style="min-height:300px;font-family:var(--font-mono);font-size:10px;margin-top:4px"
-            placeholder="Нажмите «Загрузить» чтобы увидеть SQL..."
-            ${S.state.u_id ? '' : 'readonly'}
-          ></textarea>
-          <div style="display:flex;gap:6px;margin-top:6px">
-            <button class="btn small" onclick="loadTemplate(${entry.templateId}, ${entry.id})">⟳ Загрузить</button>
-            ${S.state.u_id ? `<button class="btn small primary" onclick="saveTemplate(${entry.templateId}, ${entry.id})">💾 Сохранить шаблон</button>` : ''}
+          <div class="tpl-editor-wrap" id="tpl-wrap-${entry.id}">
+            <textarea
+              id="tpl-sql-${entry.id}"
+              class="textarea tpl-textarea"
+              placeholder="Нажмите «Загрузить» чтобы увидеть SQL..."
+              ${S.state.u_id ? '' : 'readonly'}
+              oninput="trackTemplateChanges(${entry.templateId}, ${entry.id})"
+            ></textarea>
+          </div>
+          <div class="tpl-editor-toolbar">
+            <div style="display:flex;gap:4px">
+              <button class="btn small" onclick="loadTemplate(${entry.templateId}, ${entry.id})">⟳ Загрузить</button>
+              <button class="btn small" onclick="restoreTemplateVersion(${entry.templateId}, ${entry.id}, -1)" title="Предыдущая версия">↺</button>
+              <button class="btn small" onclick="restoreTemplateVersion(${entry.templateId}, ${entry.id}, +1)" title="Следующая версия">↻</button>
+              <button class="btn small" onclick="clearTemplateHistory(${entry.templateId})" title="Очистить историю">🗑</button>
+            </div>
+            <div style="display:flex;gap:4px">
+              <button class="btn small" onclick="runTemplateSandbox(${entry.templateId}, ${entry.id})">🧪 Тест</button>
+              ${S.state.u_id ? `
+              <button class="btn small" onclick="cancelTemplateEdit(${entry.templateId}, ${entry.id})">✕ Отмена</button>
+              <button class="btn small primary" id="tpl-save-btn-${entry.id}" onclick="saveTemplate(${entry.templateId}, ${entry.id})" disabled>💾 Сохранить</button>
+              ` : ''}
+            </div>
+          </div>
+          <div id="tpl-sandbox-${entry.id}" style="display:none;margin-top:6px">
+            <div class="req-section-label" style="color:var(--cyan)">🧪 SANDBOX PREVIEW</div>
+            <div class="req-body json-view" id="tpl-sandbox-out-${entry.id}" style="max-height:200px"></div>
           </div>
         </div>
 
@@ -1726,13 +1746,62 @@ async function sendDiagnostic(entryId) {
 //  TEMPLATE EDITOR — нативный API POST /data
 // ════════════════════════════════════════════════════════════
 
-function _tplStatus(entryId, msg, color) {
+// Хранилище оригиналов и индексов версий в памяти
+const _tplState = {};   // { [templateId]: { original, versionIndex } }
+
+function _tplStatus(entryId, msg, type) {
   const el = document.getElementById(`tpl-status-${entryId}`);
-  if (el) { el.textContent = msg; el.style.color = color; }
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `tpl-status-badge ${type || ''}`;
+}
+
+function _tplDraftKey(templateId) { return `templateDraft_${templateId}`; }
+
+function _tplSaveDraft(templateId, text) {
+  const key = _tplDraftKey(templateId);
+  let draft;
+  try { draft = JSON.parse(localStorage.getItem(key)) || { versions: [] }; } catch(e) { draft = { versions: [] }; }
+  draft.versions.push({ ts: Date.now(), text });
+  if (draft.versions.length > 20) draft.versions = draft.versions.slice(-20);
+  localStorage.setItem(key, JSON.stringify(draft));
+}
+
+function _tplGetDraft(templateId) {
+  try { return JSON.parse(localStorage.getItem(_tplDraftKey(templateId))) || { versions: [] }; }
+  catch(e) { return { versions: [] }; }
+}
+
+// Автосохранение черновика каждые 5 сек при наличии изменений
+const _tplAutoSave = {};
+function _tplStartAutoSave(templateId, entryId) {
+  if (_tplAutoSave[templateId]) return;
+  _tplAutoSave[templateId] = setInterval(() => {
+    const ta = document.getElementById(`tpl-sql-${entryId}`);
+    if (!ta) { clearInterval(_tplAutoSave[templateId]); delete _tplAutoSave[templateId]; return; }
+    const st = _tplState[templateId];
+    if (st && ta.value !== st.original) {
+      _tplSaveDraft(templateId, ta.value);
+    }
+  }, 5000);
+}
+
+function trackTemplateChanges(templateId, entryId) {
+  const ta  = document.getElementById(`tpl-sql-${entryId}`);
+  const btn = document.getElementById(`tpl-save-btn-${entryId}`);
+  const wrap = document.getElementById(`tpl-wrap-${entryId}`);
+  if (!ta) return;
+
+  const st = _tplState[templateId];
+  const isDirty = st ? ta.value !== st.original : ta.value.length > 0;
+
+  if (btn) { btn.disabled = !isDirty; }
+  _tplStatus(entryId, isDirty ? '🟡 Изменено' : '🟢 Сохранено', isDirty ? 'warn' : 'ok');
+  if (wrap) wrap.classList.toggle('dirty', isDirty);
 }
 
 async function loadTemplate(templateId, entryId) {
-  _tplStatus(entryId, '⏳ Загрузка...', 'var(--yellow)');
+  _tplStatus(entryId, '⏳ Загрузка...', 'loading');
   try {
     const { baseUrl, token, u_hash } = cfg();
     const resp = await fetch(`${baseUrl}/data/?private`, {
@@ -1743,29 +1812,28 @@ async function loadTemplate(templateId, entryId) {
     const raw = await resp.text();
     let parsed;
     try { parsed = JSON.parse(raw); } catch(e) {
-      _tplStatus(entryId, '✗ Ответ не JSON', 'var(--red)');
-      return;
+      _tplStatus(entryId, '🔴 Ответ не JSON', 'error'); return;
     }
 
     const templates = parsed?.data?.sql_templates;
-    if (!templates) {
-      _tplStatus(entryId, '✗ sql_templates не найден в ответе', 'var(--red)');
-      return;
-    }
+    if (!templates) { _tplStatus(entryId, '🔴 sql_templates не найден', 'error'); return; }
 
     const tpl = templates[templateId];
-    if (!tpl) {
-      _tplStatus(entryId, `✗ Шаблон ${templateId} не найден`, 'var(--red)');
-      return;
-    }
+    if (!tpl) { _tplStatus(entryId, `🔴 Шаблон ${templateId} не найден`, 'error'); return; }
 
     const sql = tpl.value?.code || '';
-    const ta = document.getElementById(`tpl-sql-${entryId}`);
+    const ta  = document.getElementById(`tpl-sql-${entryId}`);
     if (ta) ta.value = sql;
-    _tplStatus(entryId, '✓ Загружено', 'var(--green)');
+
+    _tplState[templateId] = { original: sql, versionIndex: -1 };
+    trackTemplateChanges(templateId, entryId);
+    _tplStartAutoSave(templateId, entryId);
+
+    const st = document.getElementById(`tpl-saved-time-${entryId}`);
+    if (st) st.textContent = `загружено в ${new Date().toLocaleTimeString()}`;
 
   } catch(e) {
-    _tplStatus(entryId, `✗ ${e.message}`, 'var(--red)');
+    _tplStatus(entryId, `🔴 ${e.message}`, 'error');
   }
 }
 
@@ -1773,44 +1841,112 @@ async function saveTemplate(templateId, entryId) {
   const ta = document.getElementById(`tpl-sql-${entryId}`);
   if (!ta) return;
   const sql = ta.value.trim();
-  if (!sql) { _tplStatus(entryId, '✗ SQL пуст', 'var(--red)'); return; }
+  if (!sql) { _tplStatus(entryId, '🔴 SQL пуст', 'error'); return; }
 
-  _tplStatus(entryId, '⏳ Сохранение...', 'var(--yellow)');
+  _tplStatus(entryId, '⏳ Сохранение...', 'loading');
   try {
     const { baseUrl, token, u_hash } = cfg();
     const data = JSON.stringify({
-      sql_templates: [{
-        id:         templateId,
-        value:      { code: sql },
-        only_admin: '1',
-      }]
+      sql_templates: [{ id: templateId, value: { code: sql }, only_admin: '1' }]
     });
-
     const resp = await fetch(`${baseUrl}/data`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ token, u_hash, data }).toString(),
     });
-    const raw = await resp.text();
+    const raw  = await resp.text();
     let parsed;
     try { parsed = JSON.parse(raw); } catch(e) {
-      _tplStatus(entryId, '✗ Ответ не JSON', 'var(--red)');
-      return;
+      _tplStatus(entryId, '🔴 Ответ не JSON', 'error'); return;
     }
 
     if (parsed?.code === '200') {
-      _tplStatus(entryId, '✓ Сохранено', 'var(--green)');
+      _tplState[templateId] = { original: sql, versionIndex: -1 };
+      localStorage.removeItem(_tplDraftKey(templateId));
+      trackTemplateChanges(templateId, entryId);
+      const st = document.getElementById(`tpl-saved-time-${entryId}`);
+      if (st) st.textContent = `сохранено в ${new Date().toLocaleTimeString()}`;
       toast(`Шаблон ${templateId} сохранён`, 'success');
     } else {
       const msg = parsed?.message || 'ошибка сервера';
-      _tplStatus(entryId, `✗ ${msg}`, 'var(--red)');
+      _tplStatus(entryId, `🔴 ${msg}`, 'error');
       toast(`Ошибка: ${msg}`, 'error');
     }
-
   } catch(e) {
-    _tplStatus(entryId, `✗ ${e.message}`, 'var(--red)');
-    toast(`Ошибка сохранения: ${e.message}`, 'error');
+    _tplStatus(entryId, `🔴 ${e.message}`, 'error');
+    toast(`Ошибка: ${e.message}`, 'error');
   }
+}
+
+function cancelTemplateEdit(templateId, entryId) {
+  const ta = document.getElementById(`tpl-sql-${entryId}`);
+  const st = _tplState[templateId];
+  if (!ta || !st) return;
+
+  if (ta.value !== st.original) {
+    if (!confirm('Есть несохранённые изменения. Отменить?')) return;
+  }
+
+  ta.value = st.original;
+  localStorage.removeItem(_tplDraftKey(templateId));
+  st.versionIndex = -1;
+  trackTemplateChanges(templateId, entryId);
+}
+
+function restoreTemplateVersion(templateId, entryId, direction) {
+  const ta    = document.getElementById(`tpl-sql-${entryId}`);
+  const draft = _tplGetDraft(templateId);
+  if (!ta || !draft.versions.length) { toast('История пуста', 'info'); return; }
+
+  const st = _tplState[templateId] || { original: '', versionIndex: -1 };
+  _tplState[templateId] = st;
+
+  let idx = st.versionIndex;
+  // -1 означает текущий (несохранённый) — движемся в прошлое
+  const max = draft.versions.length - 1;
+  if (direction === -1) idx = idx < 0 ? max : Math.max(0, idx - 1);
+  if (direction === +1) idx = idx >= max ? -1 : idx + 1;
+
+  if (idx < 0) {
+    ta.value = st.original;
+    _tplStatus(entryId, '↻ текущая версия', 'ok');
+  } else {
+    ta.value = draft.versions[idx].text;
+    const d  = new Date(draft.versions[idx].ts);
+    _tplStatus(entryId, `↺ версия ${idx + 1}/${draft.versions.length} · ${d.toLocaleTimeString()}`, 'warn');
+  }
+  st.versionIndex = idx;
+  trackTemplateChanges(templateId, entryId);
+}
+
+function clearTemplateHistory(templateId) {
+  localStorage.removeItem(_tplDraftKey(templateId));
+  toast('История очищена', 'info');
+}
+
+function runTemplateSandbox(templateId, entryId) {
+  const ta = document.getElementById(`tpl-sql-${entryId}`);
+  if (!ta || !ta.value.trim()) { toast('SQL пуст', 'error'); return; }
+
+  // Берём payload последнего вызова этого шаблона
+  const entry = S.debug.calls.find(c => c.id === entryId);
+  const payloadData = entry?.payload?.data ? tryParse(entry.payload.data, {}) : {};
+
+  // Подставляем переменные в SQL вручную для preview
+  let sql = ta.value;
+  Object.entries(payloadData).forEach(([k, v]) => {
+    sql = sql.replaceAll(`{{${k}}}`, v);
+  });
+
+  const outWrap = document.getElementById(`tpl-sandbox-${entryId}`);
+  const out     = document.getElementById(`tpl-sandbox-out-${entryId}`);
+  if (!outWrap || !out) return;
+
+  outWrap.style.display = 'block';
+  out.innerHTML = `<div style="color:var(--text2);white-space:pre-wrap">${esc(sql)}</div>
+    <div style="margin-top:8px;color:var(--text3);font-size:9px">⚠️ Это только предпросмотр подстановки. Реальный запрос не выполняется.</div>`;
+
+  _tplStatus(entryId, '🧪 Sandbox', 'warn');
 }
 
 // ════════════════════════════════════════════════════════════

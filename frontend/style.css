@@ -846,3 +846,43 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .recipient-row:last-child { border-bottom: none; }
+
+/* ── TEMPLATE EDITOR ── */
+.tpl-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tpl-status-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+.tpl-status-badge.ok      { color: var(--green);  border-color: var(--green); }
+.tpl-status-badge.warn    { color: var(--yellow); border-color: var(--yellow); }
+.tpl-status-badge.error   { color: var(--red);    border-color: var(--red); }
+.tpl-status-badge.loading { color: var(--text3);  border-color: var(--border); }
+
+.tpl-editor-wrap { position: relative; }
+.tpl-editor-wrap.dirty .tpl-textarea { border-color: var(--yellow); }
+
+.tpl-textarea {
+  min-height: 300px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  resize: vertical;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.tpl-editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
