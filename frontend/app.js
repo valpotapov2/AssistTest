@@ -1608,8 +1608,7 @@ function renderDebugLog() {
       <span>${calls.length} вызов(ов)</span>
       <div style="display:flex;gap:6px">
         <button class="btn small" onclick="recipientsManager.openModal()" title="Настроить получателей">⚙️ Получатели</button>
-        <button class="btn small primary" id="btnSendDiag" onclick="sendDiagnostic(null)">📧 Отправить диагностику</button>
-        <button class="btn small danger" onclick="clearDebugLog()">Очистить</button>
+        <button class="btn small danger" onclick="clearDebugLog()">Очистить всё</button>
       </div>
     </div>
     <div id="debugLogList"></div>`;
@@ -1636,6 +1635,10 @@ function renderDebugLog() {
         <span class="debug-log-tpl">template/${entry.templateId}</span>
         <span class="debug-log-time">${entry.time}</span>
         <span class="debug-log-status ${hasError ? 'fail' : 'pass'}">${hasError ? '✗' : '✓'}</span>
+        <div style="display:flex;gap:4px;margin-left:auto" onclick="event.stopPropagation()">
+          <button class="btn small primary" onclick="sendDiagnostic(${entry.id})" title="Отправить диагностику по этому вызову">📧</button>
+          <button class="btn small danger"  onclick="removeDebugEntry(${entry.id})" title="Удалить этот вызов из лога">🗑</button>
+        </div>
       </div>
       <div class="debug-log-body" id="dbg-body-${entry.id}">
 
@@ -1765,6 +1768,11 @@ function toggleDebugEntry(id) {
 
 function clearDebugLog() {
   S.debug.calls = [];
+  renderDebugLog();
+}
+
+function removeDebugEntry(id) {
+  S.debug.calls = S.debug.calls.filter(c => c.id !== id);
   renderDebugLog();
 }
 
