@@ -168,6 +168,79 @@ async function apiGet(url, params = {}) {
   return resp.json();
 }
 
+// ════════════════════════════════════════════════════════════
+//  API RESPONSE NORMALIZER
+//  Централизованная нормализация всех ответов /query/template/*
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Нормализует сырой ответ API в единую структуру:
+ * {
+ *   ok:       boolean,        // true если code==='200' и нет критичной ошибки
+ *   code:     string,         // '200' | '500' | ...
+ *   data:     array|null,     // payload данных
+ *   warnings: string[],       // e_warning (не блокирующие)
+ *   info:     object|null,    // отладочный блок (для админа)
+ *   messages: string[],       // message[] при 500
+ *   errorText: string|null,   // итоговый текст ошибки для throw
+ * }
+ */
+function normalizeApiResponse(parsed, templateId) {
+  const norm = {
+    ok:        false,
+    code:      String(parsed.code ?? '?'),
+    data:      null,
+    warnings:  [],
+    info:      null,
+    messages:  [],
+    errorText: null,
+  };
+
+  // data
+  if (Array.isArray(parsed.data)) {
+    norm.data = parsed.data;
+  } else if (parsed.data !== undefined && parsed.data !== null) {
+    norm.data = parsed.data; // object — оставляем как есть
+  }
+
+  // e_warning — массив предупреждений (не ошибка, не бросаем)
+  if (Array.isArray(parsed.e_warning) && parsed.e_warning.length > 0) {
+    norm.warnings = parsed.e_warning.map(w =>
+      typeof w === 'object' ? (w.message || w.text || JSON.stringify(w)) : String(w)
+    );
+  }
+
+  // info — отладочный блок
+  if (parsed.info && typeof parsed.info === 'object') {
+    norm.info = parsed.info;
+  }
+
+  // message[] при 500
+  if (Array.isArray(parsed.message) && parsed.message.length > 0) {
+    norm.messages = parsed.message.map(m =>
+      typeof m === 'object' ? (m.text || m.message || m.msg || JSON.stringify(m)) : String(m)
+    );
+  } else if (typeof parsed.message === 'string' && parsed.message) {
+    norm.messages = [parsed.message];
+  }
+
+  // Определяем успех
+  if (norm.code === '200') {
+    norm.ok = true;
+  } else {
+    // Строим читаемый текст ошибки
+    if (norm.messages.length > 0) {
+      norm.errorText = norm.messages.join('; ');
+    } else if (parsed.status && parsed.status !== 'success') {
+      norm.errorText = `template ${templateId}: status=${parsed.status}`;
+    } else {
+      norm.errorText = `template ${templateId} returned code=${norm.code}`;
+    }
+  }
+
+  return norm;
+}
+
 // Запрос к именованному SQL-шаблону
 async function queryTemplate(templateId, vars = {}) {
   const { token, u_hash } = cfg();
@@ -183,6 +256,7 @@ async function queryTemplate(templateId, vars = {}) {
     payload:    JSON.parse(JSON.stringify(payload)),
     raw:        null,
     parsed:     null,
+    normalized: null,   // нормализованный ответ
     error:      null,
   };
   S.debug.calls.push(entry);
@@ -202,14 +276,29 @@ async function queryTemplate(templateId, vars = {}) {
       throw new Error(entry.error);
     }
 
-    if (parsed.code !== '200') {
-      entry.error = parsed.message || `template ${templateId} error`;
+    // Нормализация
+    const norm = normalizeApiResponse(parsed, templateId);
+    entry.normalized = norm;
+
+    // Показываем предупреждения (не блокируют выполнение)
+    if (norm.warnings.length > 0) {
+      norm.warnings.forEach(w => toast(`⚠ template ${templateId}: ${w}`, 'warn'));
+      console.warn(`[template/${templateId}] e_warning:`, norm.warnings);
+    }
+
+    // Логируем info-блок в консоль для диагностики
+    if (norm.info) {
+      console.info(`[template/${templateId}] info:`, norm.info);
+    }
+
+    if (!norm.ok) {
+      entry.error = norm.errorText;
       renderDebugLog();
       throw new Error(entry.error);
     }
 
     renderDebugLog();
-    return parsed.data;
+    return norm.data;
 
   } catch (e) {
     if (!entry.error) entry.error = e.message;
@@ -1534,6 +1623,28 @@ function renderDebugLog() {
           }</div>
         </div>
 
+        ${(entry.normalized?.warnings?.length > 0) ? `
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--yellow)">⚠ E_WARNING (${entry.normalized.warnings.length})</div>
+          <div class="req-body">${entry.normalized.warnings.map(w =>
+            `<div class="check-pill fail" style="margin-bottom:3px">${esc(w)}</div>`
+          ).join('')}</div>
+        </div>` : ''}
+
+        ${(entry.normalized?.messages?.length > 0) ? `
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--red)">✗ MESSAGE[] (code ${entry.normalized.code})</div>
+          <div class="req-body">${entry.normalized.messages.map(m =>
+            `<div class="check-pill fail" style="margin-bottom:3px">${esc(m)}</div>`
+          ).join('')}</div>
+        </div>` : ''}
+
+        ${entry.normalized?.info ? `
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--cyan)">ℹ INFO (debug)</div>
+          <div class="req-body json-view" style="max-height:140px">${colorJson(entry.normalized.info)}</div>
+        </div>` : ''}
+
         <div class="req-section">
           <div class="tpl-editor-header">
             <span style="color:var(--purple);font-size:9px;font-family:var(--font-ui);letter-spacing:.08em;text-transform:uppercase">
@@ -1689,6 +1800,25 @@ function buildDiagnosticReport(entry) {
       lines.push('── PARSED JSON ──────────────────────');
       lines.push(JSON.stringify(entry.parsed, null, 2));
       lines.push('');
+    }
+
+    if (entry.normalized) {
+      const n = entry.normalized;
+      if (n.warnings.length > 0) {
+        lines.push('── E_WARNING ────────────────────────');
+        n.warnings.forEach(w => lines.push('  ⚠ ' + w));
+        lines.push('');
+      }
+      if (n.messages.length > 0) {
+        lines.push(`── MESSAGE[] (code ${n.code}) ──────────`);
+        n.messages.forEach(m => lines.push('  ✗ ' + m));
+        lines.push('');
+      }
+      if (n.info) {
+        lines.push('── INFO (debug) ─────────────────────');
+        lines.push(JSON.stringify(n.info, null, 2));
+        lines.push('');
+      }
     }
 
     if (entry.error) {
