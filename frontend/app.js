@@ -1,926 +1,3 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>API Test — Medical Domain</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-:root {
-  --bg:         #0a0b0f;
-  --bg2:        #10121a;
-  --bg3:        #181c28;
-  --bg4:        #1e2333;
-  --border:     #252b3d;
-  --border2:    #2e3650;
-  --accent:     #3d7fff;
-  --accent2:    #5b9bff;
-  --green:      #22c55e;
-  --red:        #ef4444;
-  --yellow:     #f59e0b;
-  --purple:     #a855f7;
-  --cyan:       #06b6d4;
-  --text:       #e2e8f0;
-  --text2:      #94a3b8;
-  --text3:      #4a5568;
-  --font-mono:  'JetBrains Mono', monospace;
-  --font-ui:    'Unbounded', sans-serif;
-  --r:          6px;
-  --r2:         10px;
-}
-
-/* ── LIGHT THEME ── */
-:root.light {
-  --bg:         #f0f2f7;
-  --bg2:        #ffffff;
-  --bg3:        #e8ecf5;
-  --bg4:        #dde3f0;
-  --border:     #d0d7e8;
-  --border2:    #b8c3dc;
-  --accent:     #2563eb;
-  --accent2:    #1d4ed8;
-  --green:      #16a34a;
-  --red:        #dc2626;
-  --yellow:     #d97706;
-  --purple:     #7c3aed;
-  --cyan:       #0891b2;
-  --text:       #1e293b;
-  --text2:      #475569;
-  --text3:      #94a3b8;
-}
-
-
-/* Переключатель темы */
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--r);
-  border: 1px solid var(--border);
-  background: var(--bg3);
-  transition: all 0.15s;
-  user-select: none;
-  flex-shrink: 0;
-}
-.theme-toggle:hover { border-color: var(--accent); }
-.theme-toggle-track {
-  width: 30px; height: 16px;
-  border-radius: 8px;
-  background: var(--border2);
-  position: relative;
-  transition: background 0.25s;
-  flex-shrink: 0;
-}
-:root.light .theme-toggle-track { background: var(--accent); }
-.theme-toggle-thumb {
-  width: 12px; height: 12px;
-  border-radius: 50%;
-  background: #fff;
-  position: absolute;
-  top: 2px; left: 2px;
-  transition: transform 0.25s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-:root.light .theme-toggle-thumb { transform: translateX(14px); }
-.theme-toggle-icon { font-size: 12px; line-height: 1; }
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  transition: background-color 0.25s, color 0.25s;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── TOP BAR ── */
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  height: 44px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  z-index: 100;
-}
-
-.topbar-logo {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--accent2);
-  text-transform: uppercase;
-}
-
-.topbar-sep { width: 1px; height: 20px; background: var(--border2); }
-
-.topbar-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text2);
-}
-
-.status-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--text3);
-  transition: background 0.3s;
-}
-.status-dot.running { background: var(--yellow); animation: pulse-dot 1s infinite; }
-.status-dot.pass    { background: var(--green); }
-.status-dot.fail    { background: var(--red); }
-
-@keyframes pulse-dot {
-  0%,100% { opacity: 1; } 50% { opacity: 0.3; }
-}
-
-.topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-
-.cfg-field {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 4px 8px;
-  outline: none;
-  width: 200px;
-  transition: border-color 0.2s;
-}
-.cfg-field:focus { border-color: var(--accent); }
-.cfg-field::placeholder { color: var(--text3); }
-
-/* ── LAYOUT ── */
-.workspace {
-  display: grid;
-  grid-template-columns: 240px 1fr 1fr 340px;
-  grid-template-rows: 1fr;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* ── PANEL BASE ── */
-.panel {
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid var(--border);
-  overflow: hidden;
-}
-.panel:last-child { border-right: none; }
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  height: 36px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.panel-title {
-  font-family: var(--font-ui);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text2);
-}
-
-.panel-body {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-.panel-body::-webkit-scrollbar { width: 4px; }
-.panel-body::-webkit-scrollbar-track { background: transparent; }
-.panel-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-
-/* ── PANEL 1: SUITE TREE ── */
-.suite-item {
-  padding: 6px 10px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--border);
-  transition: background 0.15s;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.suite-item:hover { background: var(--bg3); }
-.suite-item.active { background: var(--bg4); border-left: 2px solid var(--accent); }
-.suite-name {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text);
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.suite-domain {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--bg);
-  color: var(--accent2);
-  border: 1px solid var(--border2);
-  flex-shrink: 0;
-}
-
-.cases-group { border-bottom: 1px solid var(--border); }
-
-.case-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px 5px 14px;
-  cursor: pointer;
-  transition: background 0.15s;
-  border-left: 2px solid transparent;
-}
-.case-item:hover { background: var(--bg3); }
-.case-item.active { background: var(--bg4); border-left-color: var(--accent); }
-.case-item.pass   { border-left-color: var(--green); }
-.case-item.fail   { border-left-color: var(--red); }
-.case-item.running { border-left-color: var(--yellow); }
-
-.case-status-icon {
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  background: var(--bg);
-  border: 1px solid var(--border2);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 8px;
-  flex-shrink: 0;
-  transition: all 0.2s;
-}
-.case-status-icon.pass  { background: var(--green); border-color: var(--green); color: #000; }
-.case-status-icon.fail  { background: var(--red);   border-color: var(--red);   color: #fff; }
-.case-status-icon.running { background: var(--yellow); border-color: var(--yellow); animation: pulse-dot 0.8s infinite; }
-.case-status-icon.skip  { background: var(--text3); border-color: var(--text3); }
-
-.case-label { flex: 1; overflow: hidden; }
-.case-name {
-  font-size: 10px;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.case-meta {
-  font-size: 9px;
-  color: var(--text3);
-  margin-top: 1px;
-  display: flex;
-  gap: 4px;
-}
-.method-badge {
-  font-size: 8px;
-  padding: 0 3px;
-  border-radius: 2px;
-  font-weight: 600;
-}
-.method-badge.GET    { color: var(--cyan);   }
-.method-badge.POST   { color: var(--green);  }
-.method-badge.PUT    { color: var(--yellow); }
-.method-badge.DELETE { color: var(--red);    }
-
-.tag-badge {
-  font-size: 8px;
-  padding: 0 3px;
-  border-radius: 2px;
-  background: var(--bg);
-  color: var(--text3);
-  border: 1px solid var(--border);
-}
-.tag-badge.chain     { color: var(--purple); border-color: var(--purple); }
-.tag-badge.negative  { color: var(--red);    border-color: var(--red); }
-.tag-badge.auth      { color: var(--accent2);}
-
-/* ── PANEL 1 FOOTER ── */
-.panel-footer {
-  padding: 8px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-  background: var(--bg2);
-}
-
-.btn {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  padding: 5px 10px;
-  border-radius: var(--r);
-  border: 1px solid var(--border2);
-  background: var(--bg3);
-  color: var(--text);
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-  display: flex; align-items: center; gap: 4px;
-}
-.btn:hover { background: var(--bg4); border-color: var(--accent); color: var(--accent2); }
-.btn:active { transform: scale(0.97); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { background: var(--accent2); }
-.btn.danger  { background: transparent; border-color: var(--red); color: var(--red); }
-.btn.danger:hover { background: rgba(239,68,68,0.1); }
-.btn.small { padding: 3px 7px; font-size: 9px; }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.run-controls { display: flex; gap: 4px; width: 100%; }
-.run-controls .btn { flex: 1; justify-content: center; }
-
-/* ── RUN PROGRESS ── */
-.run-progress {
-  padding: 6px 8px;
-  border-top: 1px solid var(--border);
-  background: var(--bg2);
-  flex-shrink: 0;
-  display: none;
-}
-.run-progress.visible { display: block; }
-.progress-bar-track {
-  height: 3px;
-  background: var(--bg);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 4px;
-}
-.progress-bar-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-  width: 0%;
-}
-.progress-stats {
-  display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  color: var(--text3);
-}
-.progress-stats span.pass { color: var(--green); }
-.progress-stats span.fail { color: var(--red); }
-
-/* ── PANEL 2: EDITOR ── */
-.editor-form { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-
-.field-group { display: flex; flex-direction: column; gap: 3px; }
-.field-label {
-  font-size: 9px;
-  font-family: var(--font-ui);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text3);
-}
-.field-row { display: flex; gap: 6px; }
-
-.input, .textarea, .select {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 6px 8px;
-  outline: none;
-  transition: border-color 0.2s;
-  width: 100%;
-}
-.input:focus, .textarea:focus, .select:focus { border-color: var(--accent); }
-.textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
-.textarea.tall { min-height: 120px; }
-.select { cursor: pointer; }
-
-.method-select {
-  width: 80px;
-  flex-shrink: 0;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 6px 8px;
-  outline: none;
-  cursor: pointer;
-}
-
-.url-input { flex: 1; }
-
-.role-toggle {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.role-opt {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  font-size: 10px;
-  color: var(--text2);
-  padding: 4px 8px;
-  border-radius: var(--r);
-  border: 1px solid var(--border);
-  background: var(--bg2);
-  transition: all 0.15s;
-  user-select: none;
-}
-.role-opt input { display: none; }
-.role-opt.selected { border-color: var(--accent); color: var(--accent2); background: rgba(61,127,255,0.08); }
-
-/* validation rows */
-.validations-list { display: flex; flex-direction: column; gap: 4px; }
-.validation-row {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-.validation-row .select { width: 120px; flex-shrink: 0; }
-.validation-row .input  { flex: 1; }
-.remove-btn {
-  width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: var(--r);
-  border: 1px solid var(--border);
-  background: var(--bg2);
-  color: var(--red);
-  cursor: pointer;
-  font-size: 12px;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-.remove-btn:hover { background: rgba(239,68,68,0.1); }
-
-.editor-actions {
-  display: flex;
-  gap: 6px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--bg2);
-  flex-shrink: 0;
-}
-
-/* ── PANEL 3: RESULTS ── */
-.result-item {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.result-item:hover { background: var(--bg3); }
-.result-item.active { background: var(--bg4); }
-
-.result-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.result-name {
-  flex: 1;
-  font-size: 11px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.result-badge {
-  font-size: 9px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.result-badge.pass { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid var(--green); }
-.result-badge.fail { background: rgba(239,68,68,0.15);  color: var(--red);   border: 1px solid var(--red); }
-.result-badge.pending { background: var(--bg); color: var(--text3); border: 1px solid var(--border); }
-.result-badge.skip  { background: var(--bg); color: var(--text3); border: 1px solid var(--border); }
-
-.result-checks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-}
-.check-pill {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.check-pill.pass { background: rgba(34,197,94,0.1); color: var(--green); }
-.check-pill.fail { background: rgba(239,68,68,0.1);  color: var(--red); }
-
-.result-timing {
-  margin-top: 4px;
-  font-size: 9px;
-  color: var(--text3);
-}
-
-.no-results {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  gap: 8px;
-  color: var(--text3);
-}
-.no-results-icon { font-size: 32px; opacity: 0.3; }
-.no-results-text { font-size: 11px; }
-
-/* ── PANEL 4: PREVIEW ── */
-.preview-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg2);
-  flex-shrink: 0;
-}
-.preview-tab {
-  padding: 8px 12px;
-  font-size: 9px;
-  font-family: var(--font-ui);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text3);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.preview-tab:hover { color: var(--text2); }
-.preview-tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
-
-.preview-content { padding: 12px; }
-
-/* graph */
-.graph-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-}
-.graph-node {
-  border: 1px solid var(--border2);
-  border-radius: var(--r2);
-  overflow: hidden;
-  animation: slideIn 0.25s ease;
-}
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.graph-node-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--bg3);
-  cursor: pointer;
-}
-.graph-node-type {
-  font-size: 8px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-family: var(--font-ui);
-  letter-spacing: 0.06em;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-.type-patient  { background: rgba(168,85,247,0.15); color: var(--purple); border: 1px solid var(--purple); }
-.type-primary  { background: rgba(61,127,255,0.15); color: var(--accent2); border: 1px solid var(--accent); }
-.type-followup { background: rgba(6,182,212,0.15);  color: var(--cyan);   border: 1px solid var(--cyan); }
-.type-repeat   { background: rgba(34,197,94,0.15);  color: var(--green);  border: 1px solid var(--green); }
-.type-photo    { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid var(--yellow); }
-
-.graph-node-label { flex: 1; font-size: 11px; font-weight: 500; color: var(--text); }
-.graph-node-id    { font-size: 9px; color: var(--text3); font-family: var(--font-mono); }
-.graph-node-body  { padding: 8px 10px; background: var(--bg2); display: none; }
-.graph-node-body.open { display: block; }
-.graph-connector {
-  display: flex;
-  align-items: center;
-  padding-left: 20px;
-  gap: 6px;
-  color: var(--text3);
-  font-size: 9px;
-  height: 14px;
-}
-.graph-connector::before { content: '↓'; color: var(--border2); }
-
-/* json viewer */
-.json-view {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.json-key    { color: var(--accent2); }
-.json-str    { color: var(--green); }
-.json-num    { color: var(--yellow); }
-.json-bool   { color: var(--purple); }
-.json-null   { color: var(--text3); }
-
-/* snapshot cards */
-.snapshot-card {
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  overflow: hidden;
-  margin-bottom: 8px;
-  animation: slideIn 0.2s ease;
-}
-.snapshot-card-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--bg3);
-  cursor: pointer;
-}
-.snapshot-card-label { font-size: 10px; font-weight: 500; flex: 1; }
-.snapshot-card-toggle { color: var(--text3); font-size: 10px; transition: transform 0.2s; }
-.snapshot-card-toggle.open { transform: rotate(90deg); }
-.snapshot-card-body { background: var(--bg2); display: none; padding: 8px; }
-.snapshot-card-body.open { display: block; }
-
-/* request view */
-.req-section {
-  margin-bottom: 10px;
-}
-.req-section-label {
-  font-size: 9px;
-  font-family: var(--font-ui);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text3);
-  margin-bottom: 4px;
-}
-.req-body {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 8px;
-  font-size: 10px;
-  line-height: 1.6;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-/* state viewer */
-.state-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--border);
-}
-.state-item:last-child { border-bottom: none; }
-.state-key  { color: var(--accent2); flex-shrink: 0; min-width: 120px; }
-.state-val  { color: var(--green);   word-break: break-all; }
-.state-empty { color: var(--text3); font-style: italic; font-size: 10px; text-align: center; padding: 20px; }
-
-/* utils */
-.copy-btn {
-  font-size: 9px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text3);
-  cursor: pointer;
-  transition: all 0.15s;
-  margin-left: auto;
-}
-.copy-btn:hover { border-color: var(--accent); color: var(--accent2); }
-
-.divider { height: 1px; background: var(--border); margin: 6px 0; }
-
-.badge-row { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-
-.empty-state {
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  height: 200px; gap: 8px;
-  color: var(--text3);
-}
-.empty-state-icon { font-size: 28px; opacity: 0.3; }
-.empty-state-text { font-size: 11px; }
-
-/* modal */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.7);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal-overlay.open { display: flex; }
-.modal {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: var(--r2);
-  padding: 20px;
-  width: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.modal-title {
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-}
-.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-/* toast */
-.toast-container {
-  position: fixed; bottom: 16px; right: 16px;
-  display: flex; flex-direction: column; gap: 6px;
-  z-index: 2000;
-}
-.toast {
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: var(--r);
-  padding: 8px 12px;
-  font-size: 11px;
-  animation: slideIn 0.2s ease;
-  max-width: 280px;
-}
-.toast.success { border-color: var(--green); color: var(--green); }
-.toast.error   { border-color: var(--red);   color: var(--red); }
-.toast.info    { border-color: var(--accent); color: var(--accent2); }
-</style>
-</head>
-<body>
-
-<!-- TOP BAR -->
-<div class="topbar">
-  <div class="topbar-logo">⚕ API Test</div>
-  <div class="topbar-sep"></div>
-  <div class="topbar-status">
-    <div class="status-dot" id="runStatusDot"></div>
-    <span id="runStatusText">Готов</span>
-  </div>
-  <div class="topbar-sep"></div>
-  <span style="color:var(--text3);font-size:10px;">BASE URL</span>
-  <input class="cfg-field" id="cfgBaseUrl" placeholder="https://geoblinker.ru/taxi/c/Assist/api/v1" value="https://geoblinker.ru/taxi/c/Assist/api/v1">
-  <div class="topbar-sep"></div>
-  <span style="color:var(--text3);font-size:10px;">LOGIN</span>
-  <input class="cfg-field" id="cfgLogin" style="width:160px" placeholder="doctor@clinic.ru" value="doctor@doctor.ru">
-  <span style="color:var(--text3);font-size:10px;">PASS</span>
-  <input class="cfg-field" id="cfgPassword" style="width:130px" type="password" placeholder="••••••••" value="093588059">
-  <div class="topbar-sep"></div>
-  <div class="topbar-sep"></div>
-  <button class="btn small" onclick="login()">Войти</button>
-  <button class="btn small" onclick="logout()">Выйти</button>
-  <button class="btn small" onclick="loadSuites()">Загрузить</button>
-  <div class="theme-toggle" onclick="toggleTheme()" title="Сменить тему">
-    <span class="theme-toggle-icon" id="themeIcon">🌙</span>
-    <div class="theme-toggle-track"><div class="theme-toggle-thumb"></div></div>
-    <span class="theme-toggle-icon" id="themeIconRight">☀️</span>
-  </div>
-</div>
-
-<!-- WORKSPACE -->
-<div class="workspace">
-
-  <!-- PANEL 1: TREE -->
-  <div class="panel" id="panel1">
-    <div class="panel-header">
-      <div class="panel-title">Наборы / Кейсы</div>
-      <button class="btn small" onclick="newSuite()" style="margin-left:auto" title="Новый набор">＋</button>
-    </div>
-    <div class="panel-body" id="suiteTree"></div>
-    <div class="run-progress" id="runProgress">
-      <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
-      <div class="progress-stats">
-        <span id="progressPassed" class="pass">0 ✓</span>
-        <span id="progressLabel" style="color:var(--text2)">0 / 0</span>
-        <span id="progressFailed" class="fail">0 ✗</span>
-      </div>
-    </div>
-    <div class="panel-footer">
-      <div class="run-controls">
-        <button class="btn primary" id="btnRunAll" onclick="startRun('auto')">▶ Авто</button>
-        <button class="btn" id="btnRunStep" onclick="startRun('step')">⏭ Пошаг.</button>
-        <button class="btn" id="btnStepNext" onclick="stepNext()" style="display:none">→ Далее</button>
-        <button class="btn danger small" id="btnStop" onclick="stopRun()" style="display:none">■</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- PANEL 2: EDITOR -->
-  <div class="panel" id="panel2">
-    <div class="panel-header">
-      <div class="panel-title">Редактор теста</div>
-      <button class="btn small" onclick="newCase()" style="margin-left:auto">＋ Кейс</button>
-    </div>
-    <div class="panel-body" id="editorBody">
-      <div class="empty-state">
-        <div class="empty-state-icon">✏️</div>
-        <div class="empty-state-text">Выберите или создайте тест-кейс</div>
-      </div>
-    </div>
-    <div class="editor-actions" id="editorActions" style="display:none">
-      <button class="btn primary" onclick="saveCase()">💾 Сохранить</button>
-      <button class="btn" onclick="runSingle()">▶ Запустить</button>
-      <button class="btn danger" onclick="deleteCase()">🗑 Удалить</button>
-    </div>
-  </div>
-
-  <!-- PANEL 3: RESULTS -->
-  <div class="panel" id="panel3">
-    <div class="panel-header">
-      <div class="panel-title">Результаты</div>
-      <button class="btn small" onclick="clearResults()" style="margin-left:auto">Очистить</button>
-    </div>
-    <div class="panel-body" id="resultsList">
-      <div class="no-results">
-        <div class="no-results-icon">📋</div>
-        <div class="no-results-text">Результаты появятся после запуска</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PANEL 4: PREVIEW -->
-  <div class="panel" id="panel4">
-    <div class="panel-header">
-      <div class="panel-title">Просмотр</div>
-    </div>
-    <div class="preview-tabs">
-      <div class="preview-tab active" onclick="switchPreviewTab('graph')">Граф объектов</div>
-      <div class="preview-tab" onclick="switchPreviewTab('snapshot')">Снапшот</div>
-      <div class="preview-tab" onclick="switchPreviewTab('request')">Запрос/Ответ</div>
-      <div class="preview-tab" onclick="switchPreviewTab('state')">State</div>
-    </div>
-    <div class="panel-body" id="previewBody">
-      <div class="graph-container" id="graphContainer">
-        <div class="empty-state">
-          <div class="empty-state-icon">🔗</div>
-          <div class="empty-state-text">Граф объектов появится после запуска</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<!-- MODAL: new suite -->
-<div class="modal-overlay" id="suiteModal">
-  <div class="modal">
-    <div class="modal-title">Новый набор тестов</div>
-    <div class="field-group">
-      <div class="field-label">Название</div>
-      <input class="input" id="suiteModalName" placeholder="Медицина: флоу врача">
-    </div>
-    <div class="field-group">
-      <div class="field-label">Домен</div>
-      <select class="select" id="suiteModalDomain">
-        <option value="medical">medical</option>
-        <option value="taxi">taxi</option>
-        <option value="smoke">smoke</option>
-      </select>
-    </div>
-    <div class="field-group">
-      <div class="field-label">Описание</div>
-      <textarea class="textarea" id="suiteModalDesc" style="min-height:60px" placeholder="Описание набора..."></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('suiteModal')">Отмена</button>
-      <button class="btn primary" onclick="createSuite()">Создать</button>
-    </div>
-  </div>
-</div>
-
-<!-- TOAST -->
-<div class="toast-container" id="toastContainer"></div>
-
-<script>
 // ════════════════════════════════════════════════════════════
 //  STATE
 // ════════════════════════════════════════════════════════════
@@ -945,6 +22,7 @@ const S = {
   state:    {},          // state переменных между шагами (<b_id> и т.д.)
   graphNodes: [],        // для панели 4
   previewTab: 'graph',
+  debug: { calls: [] },
 };
 // ─────────────────────────────
 // LOGIN
@@ -1038,6 +116,9 @@ async function loadSuites() {
   }
 
   setTreeLoading(false);
+  if (S.suites.length > 0) {
+    await selectSuite(S.suites[0].id);
+  }
 }
 // ════════════════════════════════════════════════════════════
 //  CONFIG
@@ -1059,42 +140,172 @@ function cfg() {
 async function apiPost(url, bodyObj) {
   const { baseUrl } = cfg();
   const body = new URLSearchParams(bodyObj);
-
   const resp = await fetch(baseUrl + url, {
     method: 'POST',
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
-
   return resp.json();
+}
+
+// Версия без .json() — возвращает raw Response для text()-чтения
+async function apiPostRaw(url, bodyObj) {
+  const { baseUrl } = cfg();
+  const body = new URLSearchParams(bodyObj);
+  return fetch(baseUrl + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
 }
 
 async function apiGet(url, params = {}) {
   const { baseUrl, token, u_hash } = cfg();
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
-
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
     headers: { 'Accept': 'application/json' },
   });
-
   return resp.json();
+}
+
+// ════════════════════════════════════════════════════════════
+//  API RESPONSE NORMALIZER
+//  Централизованная нормализация всех ответов /query/template/*
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Нормализует сырой ответ API в единую структуру:
+ * {
+ *   ok:       boolean,        // true если code==='200' и нет критичной ошибки
+ *   code:     string,         // '200' | '500' | ...
+ *   data:     array|null,     // payload данных
+ *   warnings: string[],       // e_warning (не блокирующие)
+ *   info:     object|null,    // отладочный блок (для админа)
+ *   messages: string[],       // message[] при 500
+ *   errorText: string|null,   // итоговый текст ошибки для throw
+ * }
+ */
+function normalizeApiResponse(parsed, templateId) {
+  const norm = {
+    ok:        false,
+    code:      String(parsed.code ?? '?'),
+    data:      null,
+    warnings:  [],
+    info:      null,
+    messages:  [],
+    errorText: null,
+  };
+
+  // data
+  if (Array.isArray(parsed.data)) {
+    norm.data = parsed.data;
+  } else if (parsed.data !== undefined && parsed.data !== null) {
+    norm.data = parsed.data; // object — оставляем как есть
+  }
+
+  // e_warning — массив предупреждений (не ошибка, не бросаем)
+  if (Array.isArray(parsed.e_warning) && parsed.e_warning.length > 0) {
+    norm.warnings = parsed.e_warning.map(w =>
+      typeof w === 'object' ? (w.message || w.text || JSON.stringify(w)) : String(w)
+    );
+  }
+
+  // info — отладочный блок
+  if (parsed.info && typeof parsed.info === 'object') {
+    norm.info = parsed.info;
+  }
+
+  // message[] при 500
+  if (Array.isArray(parsed.message) && parsed.message.length > 0) {
+    norm.messages = parsed.message.map(m =>
+      typeof m === 'object' ? (m.text || m.message || m.msg || JSON.stringify(m)) : String(m)
+    );
+  } else if (typeof parsed.message === 'string' && parsed.message) {
+    norm.messages = [parsed.message];
+  }
+
+  // Определяем успех
+  if (norm.code === '200') {
+    norm.ok = true;
+  } else {
+    // Строим читаемый текст ошибки
+    if (norm.messages.length > 0) {
+      norm.errorText = norm.messages.join('; ');
+    } else if (parsed.status && parsed.status !== 'success') {
+      norm.errorText = `template ${templateId}: status=${parsed.status}`;
+    } else {
+      norm.errorText = `template ${templateId} returned code=${norm.code}`;
+    }
+  }
+
+  return norm;
 }
 
 // Запрос к именованному SQL-шаблону
 async function queryTemplate(templateId, vars = {}) {
   const { token, u_hash } = cfg();
-  const d = await apiPost(`/query/template/${templateId}`, {
-    token, u_hash,
-    data: JSON.stringify(vars),
-  });
-  if (d.code !== '200') throw new Error(d.message || `template ${templateId} error: ${JSON.stringify(d)}`);
-  return d.data; // массив строк из БД
-}
+  const payload = { token, u_hash };
+  if (vars && Object.keys(vars).length > 0) {
+    payload.data = JSON.stringify(vars);
+  }
 
+  const entry = {
+    id:         S.debug.calls.length + 1,
+    templateId,
+    time:       new Date().toLocaleTimeString(),
+    payload:    JSON.parse(JSON.stringify(payload)),
+    raw:        null,
+    parsed:     null,
+    normalized: null,   // нормализованный ответ
+    error:      null,
+  };
+  S.debug.calls.push(entry);
+
+  try {
+    const resp = await apiPostRaw(`/query/template/${templateId}`, payload);
+    const raw  = await resp.text();
+    entry.raw  = raw;
+
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch(e) { /* not json */ }
+    entry.parsed = parsed;
+
+    if (parsed === null) {
+      entry.error = 'Response is not valid JSON';
+      renderDebugLog();
+      throw new Error(entry.error);
+    }
+
+    // Нормализация
+    const norm = normalizeApiResponse(parsed, templateId);
+    entry.normalized = norm;
+
+    // Показываем предупреждения (не блокируют выполнение)
+    if (norm.warnings.length > 0) {
+      norm.warnings.forEach(w => toast(`⚠ template ${templateId}: ${w}`, 'warn'));
+      console.warn(`[template/${templateId}] e_warning:`, norm.warnings);
+    }
+
+    // Логируем info-блок в консоль для диагностики
+    if (norm.info) {
+      console.info(`[template/${templateId}] info:`, norm.info);
+    }
+
+    if (!norm.ok) {
+      entry.error = norm.errorText;
+      renderDebugLog();
+      throw new Error(entry.error);
+    }
+
+    renderDebugLog();
+    return norm.data;
+
+  } catch (e) {
+    if (!entry.error) entry.error = e.message;
+    renderDebugLog();
+    throw e;
+  }
+}
 // Нормализовать строку БД → объект кейса
 function normalizeCase(row) {
   return {
@@ -1260,7 +471,7 @@ async function selectSuite(id) {
   document.getElementById('editorActions').style.display = 'none';
 
   try {
-    const rows = await queryTemplate(102, { suite_id: id });
+    const rows = await queryTemplate(102, {"{{suite_id}}": id });
     S.cases = rows.map(normalizeCase);
     toast(`Кейсов загружено: ${S.cases.length}`, 'info');
   } catch(e) {
@@ -1429,7 +640,7 @@ function collectEditorValues() {
     description:   document.getElementById('ef-desc')?.value || '',
     method:        document.getElementById('ef-method')?.value || 'GET',
     url:           document.getElementById('ef-url')?.value || '',
-    params:        document.getElementById('ef-params')?.value || '{}',
+    params: JSON.stringify( JSON.parse(document.getElementById('ef-params')?.value || '{}') ),
     group:         document.getElementById('ef-chain')?.value || '',
     depends_on:    parseInt(document.getElementById('ef-depends')?.value) || 0,
     state_save:    document.getElementById('ef-state-save')?.value || '{}',
@@ -1437,7 +648,9 @@ function collectEditorValues() {
     snapshot_config: tryParse(document.getElementById('ef-snapshot')?.value, null),
     tags:          document.getElementById('ef-tags')?.value || '',
     sort:          parseInt(document.getElementById('ef-sort')?.value) || 0,
-    u_a_role:      S.editingCase?.u_a_role || 0,
+    u_a_role: document.querySelector('.role-opt.selected input')?.value
+  ? Number(document.querySelector('.role-opt.selected input').value)
+  : 0,
   };
 }
 
@@ -1467,25 +680,29 @@ async function saveCase() {
 
   const c = S.editingCase;
   try {
-    await queryTemplate(104, {
-      case_id:       c.id || 0,
-      suite_id:      c.suite,
-      name:          c.name,
-      description:   c.description || '',
-      sort:          c.sort || 0,
-      method:        c.method,
-      url:           c.url,
-      params:        c.params || '{}',
-      u_a_role:      c.u_a_role || 0,
-      depends_on:    c.depends_on || 0,
-      chain_group:   c.group || '',
-      state_save:    typeof c.state_save === 'object' ? JSON.stringify(c.state_save) : (c.state_save || '{}'),
-      validations:   JSON.stringify(Array.isArray(c.validations) ? c.validations : []),
-      snapshot_config: c.snapshot_config ? JSON.stringify(c.snapshot_config) : '',
-      tags:          c.tags || '',
-      active:        1,
-      user_id:       S.state.u_id || 0,
-    });
+ 
+
+    const payload = {
+      case_id:     c.id || 0,
+      suite_id:    c.suite,
+      name:        c.name,
+      description: c.description || '',
+      sort:        c.sort || 0,
+      method:      c.method,
+      url:         c.url,
+      params:      c.params || '{}',
+      u_a_role:    c.u_a_role || 0,
+      depends_on:  c.depends_on || 0,
+      chain_group: c.group || '',
+      state_save:  typeof c.state_save === 'object'
+        ? JSON.stringify(c.state_save)
+        : (c.state_save || '{}'),
+      validations: JSON.stringify(
+        Array.isArray(c.validations) ? c.validations : []
+      ),
+    };
+
+    await queryTemplate(104, payload);
     toast('Тест-кейс сохранён в БД', 'success');
   } catch(e) {
     toast(`Ошибка сохранения: ${e.message}`, 'error');
@@ -1530,9 +747,14 @@ async function createSuite() {
   const base_url    = cfg().baseUrl;
   try {
     await queryTemplate(106, {
-      suite_id: 0, name, description, domain,
-      base_url, sort: S.suites.length * 10,
-      active: 1, user_id: S.state.u_id || 0,
+      suite_id:    0,
+      name:        name,
+      description: description,
+      domain:      domain,
+      base_url:    base_url,
+      sort:        S.suites.length * 10,
+      active:      1,
+      user_id:     S.state.u_id || 0,
     });
     toast('Набор создан в БД', 'success');
     // Перезагрузить список
@@ -1573,8 +795,11 @@ async function startRun(mode) {
     runId: null,
   };
 
-  // Reset state but keep login creds if already have token
-  if (!S.state.token) S.state = {};
+  // Сохраняем токен между запусками, сбрасываем только контекстные переменные
+  if (!S.state.token) {
+  await login();
+  if (!S.state.token) return;
+}
 
   setRunStatus('running', 'Запуск...');
   updateProgress();
@@ -1777,15 +1002,32 @@ function validateCheck(v, data) {
   const val = getPath(data, v.field);
   let pass = false;
   switch(v.type) {
-    case 'eq':       pass = String(val) === String(v.value); break;
-    case 'neq':      pass = String(val) !== String(v.value); break;
-    case 'hasField': pass = val !== undefined && val !== null; break;
-    case 'notEmpty': pass = val !== undefined && val !== null && val !== '' && val !== 0; break;
-    case 'contains': pass = String(val||'').includes(v.value); break;
-    case 'gte':      pass = Number(val) >= Number(v.value); break;
-    case 'lte':      pass = Number(val) <= Number(v.value); break;
+    case 'eq':
+      pass = String(val) === String(v.value);
+      break;
+    case 'neq':
+      pass = String(val) !== String(v.value);
+      break;
+    case 'hasField':
+      pass = val !== undefined && val !== null;
+      break;
+    case 'notEmpty':
+      pass = val !== undefined && val !== null && val !== '' && val !== 0
+          && !(Array.isArray(val) && val.length === 0);
+      break;
+    case 'contains':
+      pass = String(val||'').includes(v.value);
+      break;
+    case 'gte': pass = Number(val) >= Number(v.value); break;
+    case 'lte': pass = Number(val) <= Number(v.value); break;
   }
-  return { ...v, pass, actual: val };
+  // actual — читаемое значение для отображения в UI
+  let actual = val;
+  if (val === undefined) actual = 'undefined';
+  else if (val === null)  actual = 'null';
+  else if (typeof val === 'object') actual = JSON.stringify(val).slice(0, 60);
+  else actual = String(val);
+  return { ...v, pass, actual };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1801,7 +1043,7 @@ function renderResultItem(result) {
   if (existing) existing.remove();
 
   const el = document.createElement('div');
-  el.className = `result-item ${result.status === S.activeResult?.caseId === result.caseId ? ' active' : ''}`;
+  el.className = `result-item ${S.activeResult?.caseId === result.caseId ? 'active' : ''}`;
   el.id = `ri-${result.caseId}`;
   el.onclick = () => selectResult(result);
 
@@ -1809,13 +1051,25 @@ function renderResultItem(result) {
     `<div class="check-pill ${v.pass ? 'pass' : 'fail'}">${v.pass ? '✓' : '✗'} ${v.type}:${v.field}${v.value ? '='+v.value : ''}</div>`
   ).join('');
 
+  // Краткий превью ответа API прямо в карточке
+  const rb = result.responseBody;
+  let respPreview = '';
+  if (rb) {
+    const code = rb.code || rb.status || '?';
+    const msg  = rb.message || rb.error || rb.msg || '';
+    respPreview = `<div class="result-resp-preview">← code:<b>${code}</b>${msg ? ' · ' + String(msg).slice(0, 60) : ''}</div>`;
+  } else if (result.errorMessage) {
+    respPreview = `<div class="result-resp-preview" style="color:var(--red)">← ${result.errorMessage}</div>`;
+  }
+
   el.innerHTML = `
     <div class="result-header">
       <span class="result-name">${result.caseName}</span>
       <span class="result-badge ${result.status}">${result.status.toUpperCase()}</span>
     </div>
     <div class="result-checks">${checksHtml}</div>
-    <div class="result-timing">${result.durationMs}ms${result.errorMessage ? ' · ' + result.errorMessage : ''}</div>
+    ${respPreview}
+    <div class="result-timing">${result.durationMs}ms · ${result.requestUrl.replace(/.*\/api\/v\d/, '')}</div>
   `;
   list.appendChild(el);
   el.scrollIntoView({ block: 'nearest' });
@@ -1826,6 +1080,11 @@ function selectResult(result) {
   document.querySelectorAll('.result-item').forEach(el => {
     el.classList.toggle('active', el.id === `ri-${result.caseId}`);
   });
+  // При FAIL — автоматически открыть Запрос/Ответ для диагностики
+  if (result.status === 'fail' && S.previewTab === 'graph') {
+    switchPreviewTab('request');
+    return; // switchPreviewTab вызовет renderPreview
+  }
   renderPreview(result);
 }
 
@@ -1853,9 +1112,10 @@ function clearResults() {
 function switchPreviewTab(tab) {
   S.previewTab = tab;
   document.querySelectorAll('.preview-tab').forEach((el, i) => {
-    const tabs = ['graph', 'snapshot', 'request', 'state'];
+    const tabs = ['graph', 'snapshot', 'request', 'state', 'log'];
     el.classList.toggle('active', tabs[i] === tab);
   });
+  if (tab === 'log') { renderDebugLog(); return; }
   if (S.activeResult) renderPreview(S.activeResult);
   else renderPreviewEmpty(tab);
 }
@@ -1911,11 +1171,13 @@ function renderPreview(result) {
           <div class="req-body json-view">${colorJson(result.requestBody)}</div>
         </div>
         <div class="req-section">
-          <div class="req-section-label" style="display:flex;align-items:center">
-            Ответ (${result.httpStatus || '—'})
-            <button class="copy-btn" onclick="copyText(${JSON.stringify(JSON.stringify(result.responseBody))})">Copy</button>
+          <div class="req-section-label" style="display:flex;align-items:center;gap:6px">
+            Ответ
+            <span style="color:var(--text2);font-size:9px">HTTP ${result.httpStatus || '—'}</span>
+            ${result.responseBody?.code ? `<span style="color:${result.responseBody.code==='200'?'var(--green)':'var(--red)'};font-size:9px;font-weight:600">code: ${result.responseBody.code}</span>` : ''}
+            <button class="copy-btn" onclick="copyText(${JSON.stringify(JSON.stringify(result.responseBody))})">Copy JSON</button>
           </div>
-          <div class="req-body json-view">${colorJson(result.responseBody)}</div>
+          <div class="req-body json-view" style="max-height:300px">${colorJson(result.responseBody)}</div>
         </div>
         <div class="req-section">
           <div class="req-section-label">Валидации</div>
@@ -1929,6 +1191,7 @@ function renderPreview(result) {
               </div>`).join('')}
           </div>
         </div>
+        ${renderTemplateDebug()}
       </div>`;
     return;
   }
@@ -2024,13 +1287,13 @@ function toggleGraphNode(id) {
 // ════════════════════════════════════════════════════════════
 function resolveVars(str, state) {
   if (!str) return str;
-  return str.replace(/<([^>]+)>/g, (_, key) => {
+  return str.replace(/<([^>]+)>/g, (match, key) => {
     if (key.startsWith('cfg_')) {
       const cfgKey = key.slice(4);
       const c = cfg();
-      return c[cfgKey] || _;
+      return c[cfgKey] !== undefined ? c[cfgKey] : match;
     }
-    return state[key] !== undefined ? state[key] : _;
+    return state[key] !== undefined ? state[key] : match;
   });
 }
 
@@ -2151,13 +1414,673 @@ function toggleTheme() {
     });
   }
 })();
+/* ════════════════════════════════════════════════════════════
+   LAYOUT MANAGER (Resize + Toggle)
+   Не вмешивается в существующую логику
+════════════════════════════════════════════════════════════ */
+
+(function(){
+
+  const ws = document.querySelector('.workspace');
+  const panels = Array.from(ws.querySelectorAll('.panel'));
+
+  if (panels.length !== 4) return;
+
+  // --- Вставляем resize handles между панелями ---
+  for (let i = 0; i < 3; i++) {
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    handle.dataset.index = i;
+    panels[i].after(handle);
+  }
+
+  let sizes = [240, null, null, 340]; // стартовые
+  let visible = [true, true, true, true];
+
+  function buildGrid() {
+
+  const handles = ws.querySelectorAll('.resize-handle');
+  handles.forEach(h => h.style.display = 'none');
+
+  const visibleIndexes = [];
+  for (let i = 0; i < 4; i++) {
+    if (visible[i]) visibleIndexes.push(i);
+  }
+
+  // если ни одной панели
+  if (visibleIndexes.length === 0) {
+    ws.style.gridTemplateColumns = '1fr';
+    return;
+  }
+
+  // если одна панель — растянуть
+  if (visibleIndexes.length === 1) {
+    ws.style.gridTemplateColumns = '1fr';
+
+    panels.forEach(p => p.style.gridColumn = '');
+    panels[visibleIndexes[0]].style.gridColumn = '1';
+
+    return;
+  }
+
+  const cols = [];
+  let colIndex = 1;
+
+  visibleIndexes.forEach((panelIndex, idx) => {
+
+    // ширина
+    cols.push(sizes[panelIndex] ? sizes[panelIndex] + 'px' : '1fr');
+
+    // назначаем явную колонку панели
+    panels[panelIndex].style.gridColumn = colIndex;
+    colIndex++;
+
+    // если не последняя — добавляем handle
+    if (idx < visibleIndexes.length - 1) {
+
+      const handle = handles[panelIndex];
+      if (handle) {
+        handle.style.display = 'block';
+        handle.style.gridColumn = colIndex;
+      }
+
+      cols.push('6px');
+      colIndex++;
+    }
+  });
+
+  ws.style.gridTemplateColumns = cols.join(' ');
+}
+
+  buildGrid();
+
+  // --- Resize ---
+  ws.querySelectorAll('.resize-handle').forEach(handle => {
+
+    handle.addEventListener('mousedown', e => {
+
+      const i = Number(handle.dataset.index);
+      const left  = panels[i];
+      const right = panels[i+1];
+
+      const startX = e.clientX;
+      const startLeft  = left.offsetWidth;
+      const startRight = right.offsetWidth;
+
+      function move(ev) {
+        const dx = ev.clientX - startX;
+        sizes[i]   = startLeft + dx;
+        sizes[i+1] = startRight - dx;
+        buildGrid();
+      }
+
+      function up() {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+      }
+
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+
+  });
+
+  // --- Toggle API ---
+  window.togglePanel = function(index){
+
+  if (index < 1 || index > 4) return;
+  const i = index - 1;
+  visible[i] = !visible[i];
+  panels[i].style.display = visible[i] ? 'flex' : 'none';
+  // ─── Обновляем цвет кнопки ───
+  const btn = document.querySelector(
+    '.panel-toggle-btn[data-panel="' + index + '"]'
+  );
+  if (btn) {
+    btn.classList.toggle('active', visible[i]);
+  }
+  buildGrid();
+};
+
+})();
+function renderTemplateDebug() { return ''; } // оставлен для совместимости
+
+// ════════════════════════════════════════════════════════════
+//  DEBUG LOG (панель 4, таб: Лог)
+// ════════════════════════════════════════════════════════════
+function renderDebugLog() {
+  if (S.previewTab !== 'log') return;
+  const body = document.getElementById('previewBody');
+  const calls = S.debug.calls;
+
+  if (calls.length === 0) {
+    body.innerHTML = `
+      <div class="debug-log-header">
+        <span>Лог пуст</span>
+      </div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <div class="debug-log-header">
+      <span>${calls.length} вызов(ов)</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn small" onclick="recipientsManager.openModal()" title="Настроить получателей">⚙️ Получатели</button>
+        <button class="btn small primary" id="btnSendDiag" onclick="sendDiagnostic(null)">📧 Отправить диагностику</button>
+        <button class="btn small danger" onclick="clearDebugLog()">Очистить</button>
+      </div>
+    </div>
+    <div id="debugLogList"></div>`;
+
+  const list = document.getElementById('debugLogList');
+
+  [...calls].reverse().forEach(entry => {
+    const hasError = !!entry.error;
+
+    // payload.data parsing
+    let payloadDataStr = null;
+    let payloadDataParsed = null;
+    if (entry.payload?.data) {
+      payloadDataStr = entry.payload.data;
+      try { payloadDataParsed = JSON.parse(payloadDataStr); } catch(e) {}
+    }
+
+    const item = document.createElement('div');
+    item.className = `debug-log-item ${hasError ? 'error' : 'ok'}`;
+    item.id = `dbg-${entry.id}`;
+    item.innerHTML = `
+      <div class="debug-log-row" onclick="toggleDebugEntry(${entry.id})">
+        <span class="debug-log-num">#${entry.id}</span>
+        <span class="debug-log-tpl">template/${entry.templateId}</span>
+        <span class="debug-log-time">${entry.time}</span>
+        <span class="debug-log-status ${hasError ? 'fail' : 'pass'}">${hasError ? '✗' : '✓'}</span>
+      </div>
+      <div class="debug-log-body" id="dbg-body-${entry.id}">
+
+        ${payloadDataStr ? `
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--cyan)">PAYLOAD.DATA (string)</div>
+          <div class="req-body json-view" style="word-break:break-all">${esc(payloadDataStr)}</div>
+        </div>
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--cyan)">PAYLOAD.DATA (parsed)</div>
+          <div class="req-body json-view">${payloadDataParsed !== null ? colorJson(payloadDataParsed) : '<span style="color:var(--red)">not valid JSON</span>'}</div>
+        </div>` : ''}
+
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--yellow)">RAW RESPONSE</div>
+          <div class="req-body json-view" style="max-height:200px;word-break:break-all">${entry.raw !== null ? esc(entry.raw) : '<span style="color:var(--text3)">—</span>'}</div>
+        </div>
+
+        <div class="req-section">
+          <div class="req-section-label" style="color:${hasError ? 'var(--red)' : 'var(--green)'}">
+            ${entry.parsed !== null ? 'PARSED JSON' : 'PARSED JSON — not valid'}
+          </div>
+          <div class="req-body json-view" style="max-height:200px">${
+            entry.parsed !== null
+              ? colorJson(entry.parsed)
+              : `<span style="color:var(--red)">${esc(entry.error || 'Response is not valid JSON')}</span>`
+          }</div>
+        </div>
+
+        ${(entry.normalized?.warnings?.length > 0) ? `
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--yellow)">⚠ E_WARNING (${entry.normalized.warnings.length})</div>
+          <div class="req-body">${entry.normalized.warnings.map(w =>
+            `<div class="check-pill fail" style="margin-bottom:3px">${esc(w)}</div>`
+          ).join('')}</div>
+        </div>` : ''}
+
+        ${(entry.normalized?.messages?.length > 0) ? `
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--red)">✗ MESSAGE[] (code ${entry.normalized.code})</div>
+          <div class="req-body">${entry.normalized.messages.map(m =>
+            `<div class="check-pill fail" style="margin-bottom:3px">${esc(m)}</div>`
+          ).join('')}</div>
+        </div>` : ''}
+
+        ${entry.normalized?.info ? `
+        <div class="req-section">
+          <div class="req-section-label" style="color:var(--cyan)">ℹ INFO (debug)</div>
+          <div class="req-body json-view" style="max-height:140px">${colorJson(entry.normalized.info)}</div>
+        </div>` : ''}
+
+        <div class="req-section">
+          <div class="tpl-editor-header">
+            <span style="color:var(--purple);font-size:9px;font-family:var(--font-ui);letter-spacing:.08em;text-transform:uppercase">
+              TEMPLATE (ID: ${entry.templateId})
+            </span>
+            <span id="tpl-status-${entry.id}" class="tpl-status-badge"></span>
+            <span id="tpl-saved-time-${entry.id}" style="font-size:9px;color:var(--text3);margin-left:auto"></span>
+          </div>
+          <div class="tpl-editor-wrap" id="tpl-wrap-${entry.id}">
+            <textarea
+              id="tpl-sql-${entry.id}"
+              class="textarea tpl-textarea"
+              placeholder="Нажмите «Загрузить» чтобы увидеть SQL..."
+              ${S.state.u_id ? '' : 'readonly'}
+              oninput="trackTemplateChanges(${entry.templateId}, ${entry.id})"
+            ></textarea>
+          </div>
+          <div class="tpl-editor-toolbar">
+            <div style="display:flex;gap:4px">
+              <button class="btn small" onclick="loadTemplate(${entry.templateId}, ${entry.id})">⟳ Загрузить</button>
+              <button class="btn small" onclick="restoreTemplateVersion(${entry.templateId}, ${entry.id}, -1)" title="Предыдущая версия">↺</button>
+              <button class="btn small" onclick="restoreTemplateVersion(${entry.templateId}, ${entry.id}, +1)" title="Следующая версия">↻</button>
+              <button class="btn small" onclick="clearTemplateHistory(${entry.templateId})" title="Очистить историю">🗑</button>
+            </div>
+            <div style="display:flex;gap:4px">
+              <button class="btn small" onclick="runTemplateSandbox(${entry.templateId}, ${entry.id})">🧪 Тест</button>
+              ${S.state.u_id ? `
+              <button class="btn small" onclick="cancelTemplateEdit(${entry.templateId}, ${entry.id})">✕ Отмена</button>
+              <button class="btn small primary" id="tpl-save-btn-${entry.id}" onclick="saveTemplate(${entry.templateId}, ${entry.id})" disabled>💾 Сохранить</button>
+              ` : ''}
+            </div>
+          </div>
+          <div id="tpl-sandbox-${entry.id}" style="display:none;margin-top:6px">
+            <div class="req-section-label" style="color:var(--cyan)">🧪 SANDBOX PREVIEW</div>
+            <div class="req-body json-view" id="tpl-sandbox-out-${entry.id}" style="max-height:200px"></div>
+          </div>
+        </div>
+
+      </div>`;
+    list.appendChild(item);
+  });
+}
+
+function toggleDebugEntry(id) {
+  document.getElementById(`dbg-body-${id}`)?.classList.toggle('open');
+}
+
+function clearDebugLog() {
+  S.debug.calls = [];
+  renderDebugLog();
+}
+
+// ════════════════════════════════════════════════════════════
+//  RECIPIENTS MANAGER
+// ════════════════════════════════════════════════════════════
+const recipientsManager = {
+
+  _key: 'diagnosticRecipients',
+
+  load() {
+    try {
+      return JSON.parse(localStorage.getItem(this._key)) || [];
+    } catch(e) { return []; }
+  },
+
+  save() {
+    const rows = document.querySelectorAll('#recipientsTable .recipient-row');
+    const list = [];
+    rows.forEach(row => {
+      const name   = row.querySelector('.r-name').value.trim();
+      const email  = row.querySelector('.r-email').value.trim();
+      const active = row.querySelector('.r-active').checked;
+      if (email) list.push({ name, email, active });
+    });
+    localStorage.setItem(this._key, JSON.stringify(list));
+    closeModal('recipientsModal');
+    toast('Получатели сохранены', 'success');
+  },
+
+  openModal() {
+    const list = this.load();
+    const tbl  = document.getElementById('recipientsTable');
+    tbl.innerHTML = '';
+    list.forEach(r => this._appendRow(r));
+    openModal('recipientsModal');
+  },
+
+  addRow() {
+    this._appendRow({ name: '', email: '', active: true });
+  },
+
+  _appendRow(r) {
+    const tbl = document.getElementById('recipientsTable');
+    const div = document.createElement('div');
+    div.className = 'recipient-row';
+    div.innerHTML = `
+      <input class="input r-name"  placeholder="Имя"   value="${esc(r.name||'')}"  style="width:130px">
+      <input class="input r-email" placeholder="Email" value="${esc(r.email||'')}" style="flex:1">
+      <label style="display:flex;align-items:center;gap:4px;font-size:10px;white-space:nowrap">
+        <input type="checkbox" class="r-active" ${r.active ? 'checked' : ''}> Активен
+      </label>
+      <div class="remove-btn" onclick="this.parentElement.remove()">×</div>`;
+    tbl.appendChild(div);
+  },
+
+  activeEmails() {
+    return this.load().filter(r => r.active && r.email);
+  },
+};
+
+// ════════════════════════════════════════════════════════════
+//  DIAGNOSTIC REPORT
+// ════════════════════════════════════════════════════════════
+function buildDiagnosticReport(entry) {
+  const version = (location.search.match(/v=(\d+)/) || [])[1] || '?';
+  const lines = [];
+
+  lines.push('══════════════════════════════════════');
+  lines.push(`API TEST — DIAGNOSTIC REPORT`);
+  lines.push(`Time:       ${new Date().toLocaleString()}`);
+  lines.push(`Tester v:   ${version}`);
+  lines.push(`UserAgent:  ${navigator.userAgent}`);
+  lines.push(`BASE URL:   ${cfg().baseUrl}`);
+  lines.push(`LOGIN:      ${cfg().login}`);
+  lines.push('══════════════════════════════════════');
+  lines.push('');
+
+  if (entry) {
+    lines.push(`Template:   /query/template/${entry.templateId}`);
+    lines.push(`Call time:  ${entry.time}`);
+    lines.push(`Status:     ${entry.error ? '✗ ERROR' : '✓ OK'}`);
+    lines.push('');
+    lines.push('── PAYLOAD ──────────────────────────');
+    lines.push(JSON.stringify(entry.payload, null, 2));
+    lines.push('');
+
+    if (entry.payload?.data) {
+      lines.push('── PAYLOAD.DATA (string) ────────────');
+      lines.push(entry.payload.data);
+      lines.push('');
+      try {
+        lines.push('── PAYLOAD.DATA (parsed) ────────────');
+        lines.push(JSON.stringify(JSON.parse(entry.payload.data), null, 2));
+        lines.push('');
+      } catch(e) { lines.push('(not valid JSON)\n'); }
+    }
+
+    lines.push('── RAW RESPONSE ─────────────────────');
+    lines.push(entry.raw || '(empty)');
+    lines.push('');
+
+    if (entry.parsed) {
+      lines.push('── PARSED JSON ──────────────────────');
+      lines.push(JSON.stringify(entry.parsed, null, 2));
+      lines.push('');
+    }
+
+    if (entry.normalized) {
+      const n = entry.normalized;
+      if (n.warnings.length > 0) {
+        lines.push('── E_WARNING ────────────────────────');
+        n.warnings.forEach(w => lines.push('  ⚠ ' + w));
+        lines.push('');
+      }
+      if (n.messages.length > 0) {
+        lines.push(`── MESSAGE[] (code ${n.code}) ──────────`);
+        n.messages.forEach(m => lines.push('  ✗ ' + m));
+        lines.push('');
+      }
+      if (n.info) {
+        lines.push('── INFO (debug) ─────────────────────');
+        lines.push(JSON.stringify(n.info, null, 2));
+        lines.push('');
+      }
+    }
+
+    if (entry.error) {
+      lines.push('── ERROR ────────────────────────────');
+      lines.push(entry.error);
+      lines.push('');
+    }
+  }
+
+  lines.push('── FULL CALL LOG ────────────────────');
+  S.debug.calls.forEach(c => {
+    lines.push(`#${c.id} template/${c.templateId} ${c.time} ${c.error ? '✗ ' + c.error : '✓'}`);
+  });
+
+  return lines.join('\n');
+}
+
+async function sendDiagnostic(entryId) {
+  const recipients = recipientsManager.activeEmails();
+  if (recipients.length === 0) {
+    toast('Нет активных получателей. Настройте список.', 'error');
+    recipientsManager.openModal();
+    return;
+  }
+
+  const entry = entryId != null
+    ? S.debug.calls.find(c => c.id === entryId)
+    : S.debug.calls[S.debug.calls.length - 1];
+
+  const report = buildDiagnosticReport(entry);
+  const subject = `API Test Diagnostic — template/${entry?.templateId || '?'} — ${new Date().toLocaleString()}`;
+
+  const btn = document.getElementById('btnSendDiag');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Отправка...'; }
+
+  try {
+    await queryTemplate(900, {
+      subject,
+      body:       report,
+      recipients: JSON.stringify(recipients.map(r => r.email)),
+    });
+    toast('Диагностика отправлена', 'success');
+  } catch(e) {
+    if (e.message?.includes('not valid JSON') || e.message?.includes('template 900')) {
+      toast('Шаблон 900 не найден на сервере', 'error');
+    } else {
+      toast(`Ошибка отправки: ${e.message}`, 'error');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Отправить диагностику'; }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  TEMPLATE EDITOR — нативный API POST /data
+// ════════════════════════════════════════════════════════════
+
+// Хранилище оригиналов и индексов версий в памяти
+const _tplState = {};   // { [templateId]: { original, versionIndex } }
+
+function _tplStatus(entryId, msg, type) {
+  const el = document.getElementById(`tpl-status-${entryId}`);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = `tpl-status-badge ${type || ''}`;
+}
+
+function _tplDraftKey(templateId) { return `templateDraft_${templateId}`; }
+
+function _tplSaveDraft(templateId, text) {
+  const key = _tplDraftKey(templateId);
+  let draft;
+  try { draft = JSON.parse(localStorage.getItem(key)) || { versions: [] }; } catch(e) { draft = { versions: [] }; }
+  draft.versions.push({ ts: Date.now(), text });
+  if (draft.versions.length > 20) draft.versions = draft.versions.slice(-20);
+  localStorage.setItem(key, JSON.stringify(draft));
+}
+
+function _tplGetDraft(templateId) {
+  try { return JSON.parse(localStorage.getItem(_tplDraftKey(templateId))) || { versions: [] }; }
+  catch(e) { return { versions: [] }; }
+}
+
+// Автосохранение черновика каждые 5 сек при наличии изменений
+const _tplAutoSave = {};
+function _tplStartAutoSave(templateId, entryId) {
+  if (_tplAutoSave[templateId]) return;
+  _tplAutoSave[templateId] = setInterval(() => {
+    const ta = document.getElementById(`tpl-sql-${entryId}`);
+    if (!ta) { clearInterval(_tplAutoSave[templateId]); delete _tplAutoSave[templateId]; return; }
+    const st = _tplState[templateId];
+    if (st && ta.value !== st.original) {
+      _tplSaveDraft(templateId, ta.value);
+    }
+  }, 5000);
+}
+
+function trackTemplateChanges(templateId, entryId) {
+  const ta  = document.getElementById(`tpl-sql-${entryId}`);
+  const btn = document.getElementById(`tpl-save-btn-${entryId}`);
+  const wrap = document.getElementById(`tpl-wrap-${entryId}`);
+  if (!ta) return;
+
+  const st = _tplState[templateId];
+  const isDirty = st ? ta.value !== st.original : ta.value.length > 0;
+
+  if (btn) { btn.disabled = !isDirty; }
+  _tplStatus(entryId, isDirty ? '🟡 Изменено' : '🟢 Сохранено', isDirty ? 'warn' : 'ok');
+  if (wrap) wrap.classList.toggle('dirty', isDirty);
+}
+
+async function loadTemplate(templateId, entryId) {
+  _tplStatus(entryId, '⏳ Загрузка...', 'loading');
+  try {
+    const { baseUrl, token, u_hash } = cfg();
+    const resp = await fetch(`${baseUrl}/data/?private`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token, u_hash }).toString(),
+    });
+    const raw = await resp.text();
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch(e) {
+      _tplStatus(entryId, '🔴 Ответ не JSON', 'error'); return;
+    }
+
+    const templates = parsed?.data?.sql_templates;
+    if (!templates) { _tplStatus(entryId, '🔴 sql_templates не найден', 'error'); return; }
+
+    const tpl = templates[templateId];
+    if (!tpl) { _tplStatus(entryId, `🔴 Шаблон ${templateId} не найден`, 'error'); return; }
+
+    const sql = tpl.value?.code || '';
+    const ta  = document.getElementById(`tpl-sql-${entryId}`);
+    if (ta) ta.value = sql;
+
+    _tplState[templateId] = { original: sql, versionIndex: -1 };
+    trackTemplateChanges(templateId, entryId);
+    _tplStartAutoSave(templateId, entryId);
+
+    const st = document.getElementById(`tpl-saved-time-${entryId}`);
+    if (st) st.textContent = `загружено в ${new Date().toLocaleTimeString()}`;
+
+  } catch(e) {
+    _tplStatus(entryId, `🔴 ${e.message}`, 'error');
+  }
+}
+
+async function saveTemplate(templateId, entryId) {
+  const ta = document.getElementById(`tpl-sql-${entryId}`);
+  if (!ta) return;
+  const sql = ta.value.trim();
+  if (!sql) { _tplStatus(entryId, '🔴 SQL пуст', 'error'); return; }
+
+  _tplStatus(entryId, '⏳ Сохранение...', 'loading');
+  try {
+    const { baseUrl, token, u_hash } = cfg();
+    const data = JSON.stringify({
+      sql_templates: [{ id: templateId, value: { code: sql }, only_admin: '1' }]
+    });
+    const resp = await fetch(`${baseUrl}/data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token, u_hash, data }).toString(),
+    });
+    const raw  = await resp.text();
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch(e) {
+      _tplStatus(entryId, '🔴 Ответ не JSON', 'error'); return;
+    }
+
+    if (parsed?.code === '200') {
+      _tplState[templateId] = { original: sql, versionIndex: -1 };
+      localStorage.removeItem(_tplDraftKey(templateId));
+      trackTemplateChanges(templateId, entryId);
+      const st = document.getElementById(`tpl-saved-time-${entryId}`);
+      if (st) st.textContent = `сохранено в ${new Date().toLocaleTimeString()}`;
+      toast(`Шаблон ${templateId} сохранён`, 'success');
+    } else {
+      const msg = parsed?.message || 'ошибка сервера';
+      _tplStatus(entryId, `🔴 ${msg}`, 'error');
+      toast(`Ошибка: ${msg}`, 'error');
+    }
+  } catch(e) {
+    _tplStatus(entryId, `🔴 ${e.message}`, 'error');
+    toast(`Ошибка: ${e.message}`, 'error');
+  }
+}
+
+function cancelTemplateEdit(templateId, entryId) {
+  const ta = document.getElementById(`tpl-sql-${entryId}`);
+  const st = _tplState[templateId];
+  if (!ta || !st) return;
+
+  if (ta.value !== st.original) {
+    if (!confirm('Есть несохранённые изменения. Отменить?')) return;
+  }
+
+  ta.value = st.original;
+  localStorage.removeItem(_tplDraftKey(templateId));
+  st.versionIndex = -1;
+  trackTemplateChanges(templateId, entryId);
+}
+
+function restoreTemplateVersion(templateId, entryId, direction) {
+  const ta    = document.getElementById(`tpl-sql-${entryId}`);
+  const draft = _tplGetDraft(templateId);
+  if (!ta || !draft.versions.length) { toast('История пуста', 'info'); return; }
+
+  const st = _tplState[templateId] || { original: '', versionIndex: -1 };
+  _tplState[templateId] = st;
+
+  let idx = st.versionIndex;
+  // -1 означает текущий (несохранённый) — движемся в прошлое
+  const max = draft.versions.length - 1;
+  if (direction === -1) idx = idx < 0 ? max : Math.max(0, idx - 1);
+  if (direction === +1) idx = idx >= max ? -1 : idx + 1;
+
+  if (idx < 0) {
+    ta.value = st.original;
+    _tplStatus(entryId, '↻ текущая версия', 'ok');
+  } else {
+    ta.value = draft.versions[idx].text;
+    const d  = new Date(draft.versions[idx].ts);
+    _tplStatus(entryId, `↺ версия ${idx + 1}/${draft.versions.length} · ${d.toLocaleTimeString()}`, 'warn');
+  }
+  st.versionIndex = idx;
+  trackTemplateChanges(templateId, entryId);
+}
+
+function clearTemplateHistory(templateId) {
+  localStorage.removeItem(_tplDraftKey(templateId));
+  toast('История очищена', 'info');
+}
+
+function runTemplateSandbox(templateId, entryId) {
+  const ta = document.getElementById(`tpl-sql-${entryId}`);
+  if (!ta || !ta.value.trim()) { toast('SQL пуст', 'error'); return; }
+
+  // Берём payload последнего вызова этого шаблона
+  const entry = S.debug.calls.find(c => c.id === entryId);
+  const payloadData = entry?.payload?.data ? tryParse(entry.payload.data, {}) : {};
+
+  // Подставляем переменные в SQL вручную для preview
+  let sql = ta.value;
+  Object.entries(payloadData).forEach(([k, v]) => {
+    sql = sql.replaceAll(`{{${k}}}`, v);
+  });
+
+  const outWrap = document.getElementById(`tpl-sandbox-${entryId}`);
+  const out     = document.getElementById(`tpl-sandbox-out-${entryId}`);
+  if (!outWrap || !out) return;
+
+  outWrap.style.display = 'block';
+  out.innerHTML = `<div style="color:var(--text2);white-space:pre-wrap">${esc(sql)}</div>
+    <div style="margin-top:8px;color:var(--text3);font-size:9px">⚠️ Это только предпросмотр подстановки. Реальный запрос не выполняется.</div>`;
+
+  _tplStatus(entryId, '🧪 Sandbox', 'warn');
+}
 
 // ════════════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════════════
 // init();  // убрали автологин
 setRunStatus('idle', 'Не авторизован');
-
-</script>
-</body>
-</html>
