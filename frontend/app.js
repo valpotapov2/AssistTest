@@ -187,13 +187,14 @@ async function apiGet(url, params = {}) {
  */
 function normalizeApiResponse(parsed, templateId) {
   const norm = {
-    ok:        false,
-    code:      String(parsed.code ?? '?'),
-    data:      null,
-    warnings:  [],
-    info:      null,
-    messages:  [],
-    errorText: null,
+    ok:          false,
+    code:        String(parsed.code ?? '?'),
+    data:        null,
+    warnings:    [],
+    info:        null,
+    messages:    [],
+    rawMessages: [],   // оригинальные объекты message[] для структурированного рендера
+    errorText:   null,
   };
 
   // data
@@ -217,10 +218,12 @@ function normalizeApiResponse(parsed, templateId) {
 
   // message[] при 500
   if (Array.isArray(parsed.message) && parsed.message.length > 0) {
+    norm.rawMessages = parsed.message;
     norm.messages = parsed.message.map(m =>
-      typeof m === 'object' ? (m.text || m.message || m.msg || JSON.stringify(m)) : String(m)
+      typeof m === 'object' ? (m.message || m.text || m.msg || JSON.stringify(m)) : String(m)
     );
   } else if (typeof parsed.message === 'string' && parsed.message) {
+    norm.rawMessages = [parsed.message];
     norm.messages = [parsed.message];
   }
 
@@ -1631,12 +1634,20 @@ function renderDebugLog() {
           ).join('')}</div>
         </div>` : ''}
 
-        ${(entry.normalized?.messages?.length > 0) ? `
+        ${(entry.normalized?.rawMessages?.length > 0) ? `
         <div class="req-section">
           <div class="req-section-label" style="color:var(--red)">✗ MESSAGE[] (code ${entry.normalized.code})</div>
-          <div class="req-body">${entry.normalized.messages.map(m =>
-            `<div class="check-pill fail" style="margin-bottom:3px">${esc(m)}</div>`
-          ).join('')}</div>
+          <div class="req-body">${entry.normalized.rawMessages.map(m => {
+            if (typeof m === 'object' && m !== null) {
+              return `<div style="border:1px solid var(--red);border-radius:4px;padding:6px 8px;margin-bottom:6px;font-size:10px;line-height:1.6">
+                ${m.type !== undefined ? `<div><span style="color:var(--text3)">type:</span> <span style="color:var(--yellow)">${esc(String(m.type))}</span></div>` : ''}
+                ${m.message ? `<div><span style="color:var(--text3)">message:</span> <span style="color:var(--red)">${esc(String(m.message))}</span></div>` : ''}
+                ${m.file ? `<div><span style="color:var(--text3)">file:</span> <span style="color:var(--text2)">${esc(String(m.file))}</span></div>` : ''}
+                ${m.line !== undefined ? `<div><span style="color:var(--text3)">line:</span> <span style="color:var(--cyan)">${esc(String(m.line))}</span></div>` : ''}
+              </div>`;
+            }
+            return `<div class="check-pill fail" style="margin-bottom:3px">${esc(String(m))}</div>`;
+          }).join('')}</div>
         </div>` : ''}
 
         ${entry.normalized?.info ? `
@@ -1811,8 +1822,17 @@ function buildDiagnosticReport(entry) {
       }
       if (n.messages.length > 0) {
         lines.push(`── MESSAGE[] (code ${n.code}) ──────────`);
-        n.messages.forEach(m => lines.push('  ✗ ' + m));
-        lines.push('');
+        n.rawMessages.forEach(m => {
+          if (typeof m === 'object' && m !== null) {
+            if (m.type !== undefined) lines.push(`  type:    ${m.type}`);
+            if (m.message)           lines.push(`  message: ${m.message}`);
+            if (m.file)              lines.push(`  file:    ${m.file}`);
+            if (m.line !== undefined) lines.push(`  line:    ${m.line}`);
+            lines.push('');
+          } else {
+            lines.push('  ✗ ' + m);
+          }
+        });
       }
       if (n.info) {
         lines.push('── INFO (debug) ─────────────────────');
