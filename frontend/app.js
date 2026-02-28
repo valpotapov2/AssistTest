@@ -1723,12 +1723,8 @@ async function sendDiagnostic(entryId) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  TEMPLATE EDITOR
-//  Шаблон 110 — получить SQL: SELECT value FROM sql_template WHERE id={{template_id}}
-//  Шаблон 111 — сохранить:   UPDATE sql_template SET value={{value}} WHERE id={{template_id}}
+//  TEMPLATE EDITOR — нативный API POST /data
 // ════════════════════════════════════════════════════════════
-const TEMPLATE_GET_ID  = 110;
-const TEMPLATE_SAVE_ID = 111;
 
 function _tplStatus(entryId, msg, color) {
   const el = document.getElementById(`tpl-status-${entryId}`);
@@ -1738,21 +1734,36 @@ function _tplStatus(entryId, msg, color) {
 async function loadTemplate(templateId, entryId) {
   _tplStatus(entryId, '⏳ Загрузка...', 'var(--yellow)');
   try {
-    const rows = await queryTemplate(TEMPLATE_GET_ID, { template_id: templateId });
-    if (!rows || rows.length === 0) {
-      _tplStatus(entryId, '✗ Шаблон не найден', 'var(--red)');
+    const { baseUrl, token, u_hash } = cfg();
+    const resp = await fetch(`${baseUrl}/data/?private`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token, u_hash }).toString(),
+    });
+    const raw = await resp.text();
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch(e) {
+      _tplStatus(entryId, '✗ Ответ не JSON', 'var(--red)');
       return;
     }
-    const raw = rows[0].value;
-    let sql = raw;
-    try {
-      const obj = JSON.parse(raw);
-      sql = obj.code || raw;
-    } catch(e) { /* value не JSON — используем как есть */ }
 
+    const templates = parsed?.data?.sql_templates;
+    if (!templates) {
+      _tplStatus(entryId, '✗ sql_templates не найден в ответе', 'var(--red)');
+      return;
+    }
+
+    const tpl = templates[templateId];
+    if (!tpl) {
+      _tplStatus(entryId, `✗ Шаблон ${templateId} не найден`, 'var(--red)');
+      return;
+    }
+
+    const sql = tpl.value?.code || '';
     const ta = document.getElementById(`tpl-sql-${entryId}`);
     if (ta) ta.value = sql;
     _tplStatus(entryId, '✓ Загружено', 'var(--green)');
+
   } catch(e) {
     _tplStatus(entryId, `✗ ${e.message}`, 'var(--red)');
   }
@@ -1766,16 +1777,39 @@ async function saveTemplate(templateId, entryId) {
 
   _tplStatus(entryId, '⏳ Сохранение...', 'var(--yellow)');
   try {
-    const newValue = JSON.stringify({ code: sql, only_admin: '1' });
-    await queryTemplate(TEMPLATE_SAVE_ID, {
-      template_id: templateId,
-      value:       newValue,
+    const { baseUrl, token, u_hash } = cfg();
+    const data = JSON.stringify({
+      sql_templates: [{
+        id:         templateId,
+        value:      { code: sql },
+        only_admin: '1',
+      }]
     });
-    _tplStatus(entryId, '✓ Сохранено', 'var(--green)');
-    toast(`Шаблон ${templateId} сохранён`, 'success');
+
+    const resp = await fetch(`${baseUrl}/data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token, u_hash, data }).toString(),
+    });
+    const raw = await resp.text();
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch(e) {
+      _tplStatus(entryId, '✗ Ответ не JSON', 'var(--red)');
+      return;
+    }
+
+    if (parsed?.code === '200') {
+      _tplStatus(entryId, '✓ Сохранено', 'var(--green)');
+      toast(`Шаблон ${templateId} сохранён`, 'success');
+    } else {
+      const msg = parsed?.message || 'ошибка сервера';
+      _tplStatus(entryId, `✗ ${msg}`, 'var(--red)');
+      toast(`Ошибка: ${msg}`, 'error');
+    }
+
   } catch(e) {
     _tplStatus(entryId, `✗ ${e.message}`, 'var(--red)');
-    toast(`Ошибка сохранения шаблона: ${e.message}`, 'error');
+    toast(`Ошибка сохранения: ${e.message}`, 'error');
   }
 }
 
