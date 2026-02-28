@@ -840,7 +840,15 @@ async function runNext() {
   highlightCase(kase.id, result.status);
   selectResult(result);
 
+  // п.2.5: при 500 (fail из-за кода ответа) — останавливаем auto run
   if (R.mode === 'auto' && R.active) {
+    if (result.status === 'fail' && result.errorMessage && !result.validationResults?.length) {
+      // fail вызван кодом ответа (500/невалидный JSON), не валидацией — стоп
+      setRunStatus('fail', `✗ Остановлено: ${result.caseName} — ${result.errorMessage.slice(0, 80)}`);
+      toast(`Auto-run остановлен: ${result.errorMessage.slice(0, 80)}`, 'error');
+      finishRun();
+      return;
+    }
     await sleep(180);
     await runNext();
   }
@@ -934,11 +942,40 @@ async function executeCase(kase) {
     const resp = await fetch(fetchUrl, fetchOpts);
     result.httpStatus = resp.status;
 
+    // Читаем raw текст — всегда, даже если не JSON (п.7 чеклиста)
+    const rawText = await resp.text();
+    result.rawResponseText = rawText;
+
     let data = null;
-    try { data = await resp.json(); } catch(e) { data = null; }
+    try { data = JSON.parse(rawText); } catch(e) {
+      // Невалидный JSON (HTML, текст) — не падаем, фиксируем (п.7)
+      result.errorMessage = 'Response is not valid JSON: ' + rawText.slice(0, 200);
+      result.status = 'fail';
+      result.durationMs = Date.now() - start;
+      result.stateAfter = { ...S.state };
+      return result;
+    }
     result.responseBody = data;
 
-    // Save state
+    // Нормализуем ответ (п.2, п.5)
+    const norm = normalizeApiResponse(data, kase.url);
+
+    // e_warning — показываем, не останавливаем (п.3, п.5)
+    if (norm.warnings.length > 0) {
+      result.warnings = norm.warnings;
+      norm.warnings.forEach(w => toast('⚠ ' + w, 'warn'));
+    }
+
+    // code=500 → fail, бизнес-логика не выполняется (п.2.1)
+    if (!norm.ok) {
+      result.status = 'fail';
+      result.errorMessage = norm.errorText || ('code=' + norm.code);
+      result.durationMs = Date.now() - start;
+      result.stateAfter = { ...S.state };
+      return result;
+    }
+
+    // Save state — только при успехе
     if (data && kase.state_save) {
       const saveMap = tryParse(kase.state_save, {});
       Object.entries(saveMap).forEach(([key, path]) => {
@@ -954,6 +991,7 @@ async function executeCase(kase) {
 
     result.validationResults = validations.map(v => validateCheck(v, data));
     const allPass = result.validationResults.every(v => v.pass);
+    // e_warning не влияет на pass/fail (п.5)
     result.status = allPass ? 'pass' : 'fail';
 
     // Snapshot
@@ -1059,8 +1097,17 @@ function renderResultItem(result) {
   let respPreview = '';
   if (rb) {
     const code = rb.code || rb.status || '?';
-    const msg  = rb.message || rb.error || rb.msg || '';
-    respPreview = `<div class="result-resp-preview">← code:<b>${code}</b>${msg ? ' · ' + String(msg).slice(0, 60) : ''}</div>`;
+    // п.6: message может быть массивом объектов — не обрезаем, показываем первый элемент
+    let msg = '';
+    if (Array.isArray(rb.message) && rb.message.length > 0) {
+      const m = rb.message[0];
+      msg = typeof m === 'object' ? (m.message || m.text || JSON.stringify(m)) : String(m);
+    } else if (rb.message) {
+      msg = String(rb.message);
+    } else if (rb.error || rb.msg) {
+      msg = String(rb.error || rb.msg);
+    }
+    respPreview = `<div class="result-resp-preview">← code:<b>${code}</b>${msg ? ' · ' + msg.slice(0, 120) : ''}</div>`;
   } else if (result.errorMessage) {
     respPreview = `<div class="result-resp-preview" style="color:var(--red)">← ${result.errorMessage}</div>`;
   }
@@ -1653,7 +1700,28 @@ function renderDebugLog() {
         ${entry.normalized?.info ? `
         <div class="req-section">
           <div class="req-section-label" style="color:var(--cyan)">ℹ INFO (debug)</div>
-          <div class="req-body json-view" style="max-height:140px">${colorJson(entry.normalized.info)}</div>
+          <div class="req-body" style="display:flex;flex-direction:column;gap:6px">
+            ${entry.normalized.info.template !== undefined ? `
+            <div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">template</div>
+              <div class="json-view" style="max-height:60px">${esc(String(entry.normalized.info.template))}</div>
+            </div>` : ''}
+            ${entry.normalized.info.sql_final !== undefined ? `
+            <div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">sql_final</div>
+              <div class="json-view" style="max-height:120px;white-space:pre-wrap">${esc(String(entry.normalized.info.sql_final))}</div>
+            </div>` : ''}
+            ${entry.normalized.info.data !== undefined ? `
+            <div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">data</div>
+              <div class="json-view" style="max-height:100px">${colorJson(entry.normalized.info.data)}</div>
+            </div>` : ''}
+            ${Object.keys(entry.normalized.info).filter(k => !['template','sql_final','data'].includes(k)).length > 0 ? `
+            <div>
+              <div style="font-size:9px;color:var(--text3);margin-bottom:2px">other</div>
+              <div class="json-view" style="max-height:80px">${colorJson(Object.fromEntries(Object.entries(entry.normalized.info).filter(([k]) => !['template','sql_final','data'].includes(k))))}</div>
+            </div>` : ''}
+          </div>
         </div>` : ''}
 
         <div class="req-section">
