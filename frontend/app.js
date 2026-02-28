@@ -474,7 +474,7 @@ async function selectSuite(id) {
   document.getElementById('editorActions').style.display = 'none';
 
   try {
-    const rows = await queryTemplate(102, {"{{suite_id}}": id });
+    const rows = await queryTemplate(102, { "{{suite_id}}": id });
     S.cases = rows.map(normalizeCase);
     toast(`Кейсов загружено: ${S.cases.length}`, 'info');
   } catch(e) {
@@ -686,21 +686,21 @@ async function saveCase() {
  
 
     const payload = {
-      case_id:     c.id || 0,
-      suite_id:    c.suite,
-      name:        c.name,
-      description: c.description || '',
-      sort:        c.sort || 0,
-      method:      c.method,
-      url:         c.url,
-      params:      c.params || '{}',
-      u_a_role:    c.u_a_role || 0,
-      depends_on:  c.depends_on || 0,
-      chain_group: c.group || '',
-      state_save:  typeof c.state_save === 'object'
+      "{{case_id}}":     c.id || 0,
+      "{{suite_id}}":    c.suite,
+      "{{name}}":        c.name,
+      "{{description}}": c.description || '',
+      "{{sort}}":        c.sort || 0,
+      "{{method}}":      c.method,
+      "{{url}}":         c.url,
+      "{{params}}":      c.params || '{}',
+      "{{u_a_role}}":    c.u_a_role || 0,
+      "{{depends_on}}":  c.depends_on || 0,
+      "{{chain_group}}": c.group || '',
+      "{{state_save}}":  typeof c.state_save === 'object'
         ? JSON.stringify(c.state_save)
         : (c.state_save || '{}'),
-      validations: JSON.stringify(
+      "{{validations}}": JSON.stringify(
         Array.isArray(c.validations) ? c.validations : []
       ),
     };
@@ -727,7 +727,7 @@ async function deleteCase() {
   if (!S.editingCase) return;
   if (!confirm(`Удалить "${S.editingCase.name}"?`)) return;
   try {
-    await queryTemplate(105, { case_id: S.editingCase.id });
+    await queryTemplate(105, { "{{case_id}}": S.editingCase.id });
     toast('Кейс удалён из БД', 'info');
   } catch(e) {
     toast(`Ошибка удаления: ${e.message}`, 'error');
@@ -750,14 +750,14 @@ async function createSuite() {
   const base_url    = cfg().baseUrl;
   try {
     await queryTemplate(106, {
-      suite_id:    0,
-      name:        name,
-      description: description,
-      domain:      domain,
-      base_url:    base_url,
-      sort:        S.suites.length * 10,
-      active:      1,
-      user_id:     S.state.u_id || 0,
+      "{{suite_id}}":    0,
+      "{{name}}":        name,
+      "{{description}}": description,
+      "{{domain}}":      domain,
+      "{{base_url}}":    base_url,
+      "{{sort}}":        S.suites.length * 10,
+      "{{active}}":      1,
+      "{{user_id}}":     S.state.u_id || 0,
     });
     toast('Набор создан в БД', 'success');
     // Перезагрузить список
