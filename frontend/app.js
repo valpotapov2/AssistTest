@@ -245,12 +245,14 @@ function normalizeApiResponse(parsed, templateId) {
 }
 
 // Запрос к именованному SQL-шаблону
-async function queryTemplate(templateId, vars = {}) {
+async function queryTemplate(templateId, vars = {}, opts = {}) {
   const { token, u_hash } = cfg();
   const payload = { token, u_hash };
   if (vars && Object.keys(vars).length > 0) {
     payload.data = JSON.stringify(vars);
   }
+  // info=1 добавляется на верхний уровень payload (не внутрь data)
+  if (opts.info) payload.info = 1;
 
   const entry = {
     id:         S.debug.calls.length + 1,
@@ -298,6 +300,14 @@ async function queryTemplate(templateId, vars = {}) {
       entry.error = norm.errorText;
       renderDebugLog();
       throw new Error(entry.error);
+    }
+
+    // status=info: бэк вернул финальный SQL без выполнения — показываем и прерываем
+    if (norm.info && parsed.status === 'info') {
+      renderDebugLog();
+      const sql = norm.info.sql_final || '(sql not returned)';
+      toast(`ℹ SQL preview template/${templateId} — см. debug log`, 'info');
+      throw new Error(`__info__: ${sql}`);
     }
 
     renderDebugLog();
@@ -674,6 +684,42 @@ function newCase() {
   S.cases.push(S.editingCase);
   renderTree();
   renderEditor();
+}
+
+// SQL Preview — отправляет payload с info=1, бэк возвращает финальный SQL без выполнения
+async function saveCasePreview() {
+  if (!S.editingCase) return;
+  const vals = collectEditorValues();
+  Object.assign(S.editingCase, vals);
+  const c = S.editingCase;
+  try {
+    const payload = {
+      "{{case_id}}":     c.id || 0,
+      "{{suite_id}}":    c.suite,
+      "{{name}}":        c.name,
+      "{{description}}": c.description || '',
+      "{{sort}}":        c.sort || 0,
+      "{{method}}":      c.method,
+      "{{url}}":         c.url,
+      "{{params}}":      c.params || '{}',
+      "{{u_a_role}}":    c.u_a_role || 0,
+      "{{depends_on}}":  c.depends_on || 0,
+      "{{chain_group}}": c.group || '',
+      "{{state_save}}":  typeof c.state_save === 'object'
+        ? JSON.stringify(c.state_save)
+        : (c.state_save || '{}'),
+      "{{validations}}": JSON.stringify(
+        Array.isArray(c.validations) ? c.validations : []
+      ),
+    };
+    await queryTemplate(104, payload, { info: 1 });
+  } catch(e) {
+    if (e.message?.startsWith('__info__')) {
+      toast('SQL preview получен — смотри debug log', 'success');
+    } else {
+      toast(`Ошибка preview: ${e.message}`, 'error');
+    }
+  }
 }
 
 async function saveCase() {
