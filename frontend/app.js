@@ -840,15 +840,7 @@ async function runNext() {
   highlightCase(kase.id, result.status);
   selectResult(result);
 
-  // п.2.5: при 500 (fail из-за кода ответа) — останавливаем auto run
   if (R.mode === 'auto' && R.active) {
-    if (result.status === 'fail' && result.errorMessage && !result.validationResults?.length) {
-      // fail вызван кодом ответа (500/невалидный JSON), не валидацией — стоп
-      setRunStatus('fail', `✗ Остановлено: ${result.caseName} — ${result.errorMessage.slice(0, 80)}`);
-      toast(`Auto-run остановлен: ${result.errorMessage.slice(0, 80)}`, 'error');
-      finishRun();
-      return;
-    }
     await sleep(180);
     await runNext();
   }
@@ -966,7 +958,7 @@ async function executeCase(kase) {
       norm.warnings.forEach(w => toast('⚠ ' + w, 'warn'));
     }
 
-    // code=500 → fail, бизнес-логика не выполняется (п.2.1)
+    // code !== 200 → fail, бизнес-логика не выполняется (п.2.1)
     if (!norm.ok) {
       result.status = 'fail';
       result.errorMessage = norm.errorText || ('code=' + norm.code);
