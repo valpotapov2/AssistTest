@@ -1783,20 +1783,27 @@ const recipientsManager = {
 
   _key: 'diagnosticRecipients',
 
+  // Дефолтные получатели с id из site_emails
+  _defaults: [
+    { name: 'Получатель 1', id_site_email: 4, active: true  },
+    { name: 'Получатель 2', id_site_email: 5, active: false },
+  ],
+
   load() {
     try {
-      return JSON.parse(localStorage.getItem(this._key)) || [];
-    } catch(e) { return []; }
+      const saved = JSON.parse(localStorage.getItem(this._key));
+      return (saved && saved.length > 0) ? saved : this._defaults;
+    } catch(e) { return this._defaults; }
   },
 
   save() {
     const rows = document.querySelectorAll('#recipientsTable .recipient-row');
     const list = [];
     rows.forEach(row => {
-      const name   = row.querySelector('.r-name').value.trim();
-      const email  = row.querySelector('.r-email').value.trim();
-      const active = row.querySelector('.r-active').checked;
-      if (email) list.push({ name, email, active });
+      const name          = row.querySelector('.r-name').value.trim();
+      const id_site_email = parseInt(row.querySelector('.r-site-id').value.trim()) || 0;
+      const active        = row.querySelector('.r-active').checked;
+      if (id_site_email) list.push({ name, id_site_email, active });
     });
     localStorage.setItem(this._key, JSON.stringify(list));
     closeModal('recipientsModal');
@@ -1812,7 +1819,7 @@ const recipientsManager = {
   },
 
   addRow() {
-    this._appendRow({ name: '', email: '', active: true });
+    this._appendRow({ name: '', id_site_email: '', active: true });
   },
 
   _appendRow(r) {
@@ -1820,8 +1827,8 @@ const recipientsManager = {
     const div = document.createElement('div');
     div.className = 'recipient-row';
     div.innerHTML = `
-      <input class="input r-name"  placeholder="Имя"   value="${esc(r.name||'')}"  style="width:130px">
-      <input class="input r-email" placeholder="Email" value="${esc(r.email||'')}" style="flex:1">
+      <input class="input r-name"    placeholder="Имя"           value="${esc(r.name||'')}"            style="width:120px">
+      <input class="input r-site-id" placeholder="id_site_email" value="${esc(r.id_site_email||'')}"   style="width:80px" type="number">
       <label style="display:flex;align-items:center;gap:4px;font-size:10px;white-space:nowrap">
         <input type="checkbox" class="r-active" ${r.active ? 'checked' : ''}> Активен
       </label>
@@ -1829,8 +1836,8 @@ const recipientsManager = {
     tbl.appendChild(div);
   },
 
-  activeEmails() {
-    return this.load().filter(r => r.active && r.email);
+  activeRecipients() {
+    return this.load().filter(r => r.active && r.id_site_email);
   },
 };
 
@@ -1925,7 +1932,7 @@ function buildDiagnosticReport(entry) {
 }
 
 async function sendDiagnostic(entryId) {
-  const recipients = recipientsManager.activeEmails();
+  const recipients = recipientsManager.activeRecipients();
   if (recipients.length === 0) {
     toast('Нет активных получателей. Настройте список.', 'error');
     recipientsManager.openModal();
@@ -1942,19 +1949,41 @@ async function sendDiagnostic(entryId) {
   const btn = document.getElementById('btnSendDiag');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Отправка...'; }
 
+  let sent = 0;
+  let failed = 0;
+
   try {
-    await queryTemplate(900, {
-      subject,
-      body:       report,
-      recipients: JSON.stringify(recipients.map(r => r.email)),
-    });
-    toast('Диагностика отправлена', 'success');
-  } catch(e) {
-    if (e.message?.includes('not valid JSON') || e.message?.includes('template 900')) {
-      toast('Шаблон 900 не найден на сервере', 'error');
-    } else {
-      toast(`Ошибка отправки: ${e.message}`, 'error');
+    // Отправляем на каждый id_site_email через нативный /mail/{id}/send
+    for (const r of recipients) {
+      try {
+        const { baseUrl, token, u_hash } = cfg();
+        const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ token, u_hash, subject, body: report }).toString(),
+        });
+        const raw = await resp.text();
+        let parsed = null;
+        try { parsed = JSON.parse(raw); } catch(e) {}
+
+        if (parsed?.code === '200') {
+          sent++;
+        } else {
+          failed++;
+          const msg = Array.isArray(parsed?.message)
+            ? parsed.message.map(m => typeof m === 'object' ? m.message : m).join('; ')
+            : (parsed?.message || 'ошибка сервера');
+          toast(`Ошибка для id=${r.id_site_email}: ${msg}`, 'error');
+        }
+      } catch(e) {
+        failed++;
+        toast(`Ошибка для id=${r.id_site_email}: ${e.message}`, 'error');
+      }
     }
+
+    if (sent > 0) toast(`Диагностика отправлена (${sent} из ${recipients.length})`, 'success');
+    if (sent === 0) toast('Ни одно письмо не отправлено', 'error');
+
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '📧 Отправить диагностику'; }
   }
