@@ -887,3 +887,16 @@ body {
   margin-top: 6px;
   flex-wrap: wrap;
 }
+
+/* ── Tree filter bar ──────────────────────────────── */
+.tree-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
