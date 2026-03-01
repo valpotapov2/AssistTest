@@ -423,20 +423,57 @@ function renderTree() {
     el.appendChild(sEl);
 
     if (S.activeSuite?.id === suite.id) {
-      const cases = S.cases.filter(c => c.suite === suite.id)
+      // ── Панель фильтра ──────────────────────────────────
+      const allCases = S.cases.filter(c => c.suite === suite.id);
+      const groups   = [...new Set(allCases.map(c => c.group).filter(Boolean))];
+
+      const filterEl = document.createElement('div');
+      filterEl.className = 'tree-filter-bar';
+      filterEl.innerHTML = `
+        <input
+          id="treeSearchInput"
+          class="input"
+          placeholder="Поиск (#id, имя, url, тег)"
+          value="${esc(treeFilter.text)}"
+          oninput="setTreeFilter('text', this.value)"
+          style="flex:1;font-size:10px;height:24px;padding:2px 6px"
+        >
+        ${groups.length > 1 ? `
+        <select id="treeGroupSelect" class="select" style="font-size:10px;height:24px;padding:2px 4px"
+          onchange="setTreeFilter('chain_group', this.value)">
+          <option value="">Все группы</option>
+          ${groups.map(g => `<option value="${esc(g)}" ${treeFilter.chain_group===g?'selected':''}>${esc(g)}</option>`).join('')}
+        </select>` : ''}
+        ${(treeFilter.text || treeFilter.chain_group) ? `
+        <button class="btn small" onclick="resetTreeFilter()" style="height:24px;padding:2px 6px;font-size:10px">✕</button>
+        ` : ''}
+      `;
+      el.appendChild(filterEl);
+
+      // ── Фильтрация — только для отображения, S.cases не трогаем ──
+      const cases = allCases
+        .filter(caseMatchesFilter)
         .sort((a, b) => a.sort - b.sort);
 
       // group by chain_group
-      const groups = {};
-      const ungrouped = [];
+      const groupedMap = {};
+      const ungrouped  = [];
       cases.forEach(c => {
         if (c.group) {
-          if (!groups[c.group]) groups[c.group] = [];
-          groups[c.group].push(c);
+          if (!groupedMap[c.group]) groupedMap[c.group] = [];
+          groupedMap[c.group].push(c);
         } else {
           ungrouped.push(c);
         }
       });
+
+      // Счётчик при активном фильтре
+      if (treeFilter.text || treeFilter.chain_group) {
+        const countEl = document.createElement('div');
+        countEl.style = 'font-size:9px;color:var(--text3);padding:2px 8px';
+        countEl.textContent = `Показано: ${cases.length} из ${allCases.length}`;
+        el.appendChild(countEl);
+      }
 
       const render = (cs) => cs.forEach(c => {
         const result = S.run.results.find(r => r.caseId === c.id);
@@ -449,7 +486,9 @@ function renderTree() {
         cEl.innerHTML = `
           <div class="case-status-icon ${status}">${icons[status] || '○'}</div>
           <div class="case-label">
-            <div class="case-name">${c.name}</div>
+            <div class="case-name">
+              <span style="color:var(--text3);font-size:9px;margin-right:4px">#${c.id}</span>${c.name}
+            </div>
             <div class="case-meta">
               <span class="method-badge ${c.method}">${c.method}</span>
               <span style="color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px">${c.url}</span>
@@ -461,7 +500,7 @@ function renderTree() {
         el.appendChild(cEl);
       });
 
-      Object.values(groups).forEach(render);
+      Object.values(groupedMap).forEach(render);
       render(ungrouped);
     }
   });
@@ -1108,6 +1147,48 @@ async function sendCaseDiagnostic() {
   }
   if (btn) { btn.disabled = false; btn.textContent = '📧 Диагностика'; }
   if (sent > 0) toast(`Диагностика отправлена (${sent}/${recipients.length})`, 'success');
+}
+
+// ════════════════════════════════════════════════════════════
+//  TREE FILTER — только UI, не влияет на S.cases и run
+// ════════════════════════════════════════════════════════════
+const treeFilter = {
+  text:        '',   // поиск по имени, url, тегу или числовому id
+  chain_group: '',   // фильтр по группе цепочки
+};
+
+function setTreeFilter(key, value) {
+  treeFilter[key] = value;
+  renderTree();
+}
+
+function resetTreeFilter() {
+  treeFilter.text        = '';
+  treeFilter.chain_group = '';
+  // Сбрасываем UI
+  const inp = document.getElementById('treeSearchInput');
+  if (inp) inp.value = '';
+  const sel = document.getElementById('treeGroupSelect');
+  if (sel) sel.value = '';
+  renderTree();
+}
+
+// Применяет фильтр к кейсу — только для отображения
+function caseMatchesFilter(c) {
+  const text = treeFilter.text.trim().toLowerCase();
+  if (text) {
+    // Если введено число — ищем по id
+    const asNum = parseInt(text, 10);
+    if (!isNaN(asNum) && String(asNum) === text) {
+      if (c.id !== asNum) return false;
+    } else {
+      // Иначе ищем по имени, url, тегам
+      const haystack = [c.name, c.url, c.tags || ''].join(' ').toLowerCase();
+      if (!haystack.includes(text)) return false;
+    }
+  }
+  if (treeFilter.chain_group && c.group !== treeFilter.chain_group) return false;
+  return true;
 }
 
 // ════════════════════════════════════════════════════════════
