@@ -48,7 +48,10 @@
   <!-- PANEL 1: TREE -->
   <div class="panel" id="panel1">
     <div class="panel-header">
-      <div class="panel-title">Наборы / Кейсы</div>
+      <div class="panel-title">
+           Наборы / Кейсы
+          <span id="filterBadge" style="display:none;font-size:9px;color:#f5a623;margin-left:6px">[Filtered]</span>
+      </div>
       <button class="btn small" onclick="newSuite()" style="margin-left:auto" title="Новый набор">＋</button>
     </div>
     <div class="panel-body" id="suiteTree"></div>
@@ -64,6 +67,7 @@
       <div class="run-controls">
         <button class="btn primary" id="btnRunAll" onclick="startRun('auto')">▶ Авто</button>
         <button class="btn" id="btnRunStep" onclick="startRun('step')">⏭ Пошаг.</button>
+        <div id="filterWarning"></div>
         <button class="btn" id="btnStepNext" onclick="stepNext()" style="display:none">→ Далее</button>
         <button class="btn danger small" id="btnStop" onclick="stopRun()" style="display:none">■</button>
       </div>
