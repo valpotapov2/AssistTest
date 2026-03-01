@@ -2188,8 +2188,7 @@ async function sendTrace() {
   lines.push(JSON.stringify(exportData));  // компактный JSON без отступов
 
   const subject = `AssistTest TRACE run #${S.runCounter} — ${new Date().toLocaleString()}`;
-  const body    = lines.join('
-');
+  const body    = lines.join('\n');
 
   let sent = 0;
   for (const r of recipients) {
