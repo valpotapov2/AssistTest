@@ -830,7 +830,7 @@ async function saveCase() {
   // Перезагрузить кейсы чтобы получить id из БД если новый
   if (S.activeSuite) {
     try {
-      const rows = await queryTemplate(102, { suite_id: S.activeSuite.id });
+      const rows = await queryTemplate(102, { "{{suite_id}}": S.activeSuite.id });
       S.cases = rows.map(normalizeCase);
     } catch(e) { /* ignore */ }
   }
