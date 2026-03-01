@@ -438,10 +438,11 @@ function renderTree() {
           oninput="setTreeFilter('text', this.value)"
           style="flex:1;font-size:10px;height:24px;padding:2px 6px"
         >
-        ${groups.length > 1 ? `
+        ${groups.length > 0 ? `
         <select id="treeGroupSelect" class="select" style="font-size:10px;height:24px;padding:2px 4px"
-          onchange="setTreeFilter('chain_group', this.value)">
+          onchange="setTreeFilter('chain_group', this.value || '')">
           <option value="">Все группы</option>
+          <option value="__none__" ${treeFilter.chain_group==='__none__'?'selected':''}>Без группы</option>
           ${groups.map(g => `<option value="${esc(g)}" ${treeFilter.chain_group===g?'selected':''}>${esc(g)}</option>`).join('')}
         </select>` : ''}
         ${(treeFilter.text || treeFilter.chain_group) ? `
@@ -502,8 +503,21 @@ function renderTree() {
 
       Object.values(groupedMap).forEach(render);
       render(ungrouped);
+
+      // Если поиск по числу дал ровно 1 результат — прокрутить и подсветить
+      if (treeFilter.text && /^\d+$/.test(treeFilter.text.trim()) && cases.length === 1) {
+        const target = document.getElementById(`case-item-${cases[0].id}`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          target.classList.add('filter-highlight');
+          setTimeout(() => target.classList.remove('filter-highlight'), 1500);
+        }
+      }
     }
   });
+
+  // Обновляем предупреждение рядом с кнопкой Авто
+  updateFilterWarning();
 }
 
 async function selectSuite(id) {
@@ -1159,7 +1173,7 @@ const treeFilter = {
 
 function setTreeFilter(key, value) {
   treeFilter[key] = value;
-  renderTree();
+  renderTree(); // renderTree сам вызывает updateFilterWarning
 }
 
 function resetTreeFilter() {
@@ -1175,20 +1189,48 @@ function resetTreeFilter() {
 
 // Применяет фильтр к кейсу — только для отображения
 function caseMatchesFilter(c) {
+  // Фильтр по группе
+  if (treeFilter.chain_group) {
+    if (treeFilter.chain_group === '__none__') {
+      if (c.group) return false;
+    } else {
+      if (c.group !== treeFilter.chain_group) return false;
+    }
+  }
+
+  // Фильтр по тексту
   const text = treeFilter.text.trim().toLowerCase();
   if (text) {
-    // Если введено число — ищем по id
     const asNum = parseInt(text, 10);
     if (!isNaN(asNum) && String(asNum) === text) {
       if (c.id !== asNum) return false;
     } else {
-      // Иначе ищем по имени, url, тегам
       const haystack = [c.name, c.url, c.tags || ''].join(' ').toLowerCase();
       if (!haystack.includes(text)) return false;
     }
   }
-  if (treeFilter.chain_group && c.group !== treeFilter.chain_group) return false;
+
   return true;
+}
+
+// Обновляет индикатор фильтра рядом с кнопкой Авто
+function updateFilterWarning() {
+  const warn  = document.getElementById('filterWarning');
+  const badge = document.getElementById('filterBadge');
+  const isActive = !!(treeFilter.text || treeFilter.chain_group);
+
+  if (badge) badge.style.display = isActive ? 'inline' : 'none';
+
+  if (!warn) return;
+  if (!isActive || !S.activeSuite) {
+    warn.style.display = 'none';
+    return;
+  }
+  const allCases     = S.cases.filter(c => c.suite === S.activeSuite.id);
+  const visibleCases = allCases.filter(caseMatchesFilter);
+  const hidden       = allCases.length - visibleCases.length;
+  warn.style.display = 'block';
+  warn.textContent   = `Отображается ${visibleCases.length} из ${allCases.length}. Будет выполнено ${allCases.length}.${hidden > 0 ? ` Скрыто: ${hidden}.` : ''}`;
 }
 
 // ════════════════════════════════════════════════════════════
