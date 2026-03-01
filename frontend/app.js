@@ -25,6 +25,7 @@ const S = {
   debug: { calls: [] },
   trace:      [],        // полная трасса всех прогонов
   runCounter: 0,         // счётчик прогонов Auto
+  traceMode:  'compact', // 'compact' | 'full'
 };
 // Добавляем вкладку TRACE в панель превью если её ещё нет
 (function addTraceTab() {
@@ -1475,22 +1476,51 @@ async function executeCase(kase) {
   result.stateAfter  = { ...S.state };
 
   // Запись в трассу
-  const stateAfter = JSON.parse(JSON.stringify(S.state));
-  S.trace.push({
-    run_id:       S.runCounter,
-    case_id:      kase.id,
-    case_name:    kase.name,
-    method:       kase.method,
-    url:          result.requestUrl,
-    role:         kase.u_a_role,
-    request:      result.requestBody,
-    response:     result.responseBody,
-    state_before: stateBefore,
-    state_after:  stateAfter,
-    state_delta:  diffState(stateBefore, stateAfter),
-    status:       result.status,
-    timestamp:    new Date().toISOString(),
-  });
+  const stateAfter  = JSON.parse(JSON.stringify(S.state));
+  const stateDelta  = diffState(stateBefore, stateAfter);
+  const isFail      = result.status !== 'pass';
+  const traceMode   = S.traceMode || 'compact';
+
+  // Компактная запись — только суть
+  const traceEntry = {
+    run_id:      S.runCounter,
+    case_id:     kase.id,
+    case_name:   kase.name,
+    method:      kase.method,
+    url:         result.requestUrl,
+    status:      result.status,
+    timestamp:   new Date().toISOString(),
+    state_delta: stateDelta,
+  };
+
+  // HTTP code + краткая ошибка при FAIL
+  if (result.responseBody?.code !== undefined) {
+    traceEntry.code = result.responseBody.code;
+  }
+  if (isFail) {
+    traceEntry.error = result.errorMessage || null;
+    // Краткий ответ при ошибке: code, status, message, e_warning
+    const rb = result.responseBody;
+    if (rb) {
+      traceEntry.response_fail = {
+        code:      rb.code,
+        status:    rb.status,
+        message:   rb.message,
+        e_warning: rb.e_warning,
+      };
+    }
+  }
+
+  // Полный режим — всё как раньше
+  if (traceMode === 'full') {
+    traceEntry.role         = kase.u_a_role;
+    traceEntry.request      = result.requestBody;
+    traceEntry.response     = result.responseBody;
+    traceEntry.state_before = stateBefore;
+    traceEntry.state_after  = stateAfter;
+  }
+
+  S.trace.push(traceEntry);
 
   return result;
 }
@@ -2101,9 +2131,15 @@ function renderTrace() {
     runs[t.run_id].push(t);
   });
 
+  const modeLabel = S.traceMode === 'full' ? 'Full' : 'Compact';
+  const modeNext  = S.traceMode === 'full' ? 'compact' : 'full';
+
   let html = `<div style="padding:8px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <span style="font-size:10px;color:var(--text3)">${S.trace.length} шагов · ${Object.keys(runs).length} прогонов</span>
+      <button class="btn small" onclick="S.traceMode='${modeNext}';renderTrace()" title="Переключить режим трассы">
+        ${modeLabel}
+      </button>
       <button class="btn small primary" style="margin-left:auto" onclick="sendTrace()">📧 Отправить трассу</button>
     </div>`;
 
@@ -2165,6 +2201,7 @@ async function sendTrace() {
     base_url:     cfg().baseUrl,
     login:        cfg().login,
     run_id:       S.runCounter,
+    trace_mode:   S.traceMode || 'compact',
     generated_at: new Date().toISOString(),
     trace:        S.trace,
   };
