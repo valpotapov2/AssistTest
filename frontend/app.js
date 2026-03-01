@@ -2140,6 +2140,7 @@ function renderTrace() {
       <button class="btn small" onclick="S.traceMode='${modeNext}';renderTrace()" style="color:var(--cyan);border-color:var(--cyan)" title="Переключить: compact = только суть, full = всё">
         ⚙ ${modeLabel}
       </button>
+      <button class="btn small danger" onclick="S.trace=[];S.runCounter=0;renderTrace()">🗑 Очистить трассу</button>
       <button class="btn small primary" style="margin-left:auto" onclick="sendTrace()">📧 Отправить трассу</button>
     </div>`;
 
