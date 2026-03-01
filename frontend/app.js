@@ -2137,8 +2137,8 @@ function renderTrace() {
   let html = `<div style="padding:8px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <span style="font-size:10px;color:var(--text3)">${S.trace.length} шагов · ${Object.keys(runs).length} прогонов</span>
-      <button class="btn small" onclick="S.traceMode='${modeNext}';renderTrace()" title="Переключить режим трассы">
-        ${modeLabel}
+      <button class="btn small" onclick="S.traceMode='${modeNext}';renderTrace()" style="color:var(--cyan);border-color:var(--cyan)" title="Переключить: compact = только суть, full = всё">
+        ⚙ ${modeLabel}
       </button>
       <button class="btn small primary" style="margin-left:auto" onclick="sendTrace()">📧 Отправить трассу</button>
     </div>`;
@@ -2149,37 +2149,41 @@ function renderTrace() {
     const t0      = steps[0]?.timestamp?.slice(11,19) || '';
     const t1      = steps[steps.length-1]?.timestamp?.slice(11,19) || '';
     html += `<div style="margin-bottom:12px">
-      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;padding:6px 8px;background:var(--bg2);border-radius:4px;display:flex;align-items:center;gap:6px">
+      <div style="font-size:10px;font-weight:600;color:#e2e2e2;margin-bottom:4px;padding:6px 8px;background:#2a2a3e;border-radius:4px;display:flex;align-items:center;gap:6px">
         <span>▶ Прогон #${run_id}</span>
-        <span style="color:var(--text3);font-weight:400">${steps.length} шагов</span>
-        <span style="color:var(--green)">${passed} ✓</span>
-        <span style="color:var(--red)">${failed} ✗</span>
-        <span style="color:var(--text3);font-size:9px;margin-left:auto">${t0}${t1 && t0!==t1 ? ' – '+t1 : ''}</span>
+        <span style="color:#888;font-weight:400">${steps.length} шагов</span>
+        <span style="color:#22c55e">${passed} ✓</span>
+        <span style="color:#ef4444">${failed} ✗</span>
+        <span style="color:#888;font-size:9px;margin-left:auto">${t0}${t1 && t0!==t1 ? ' – '+t1 : ''}</span>
       </div>`;
 
     steps.forEach(t => {
       const ok = t.status === 'pass';
       const deltaKeys = Object.keys(t.state_delta || {});
       const time = t.timestamp ? t.timestamp.slice(11, 19) : '';
-      html += `<div style="border-left:2px solid ${ok ? 'var(--green)' : 'var(--red)'};
-        padding:4px 8px;margin-bottom:3px;background:var(--bg);border-radius:0 4px 4px 0">
+      const borderColor = ok ? '#22c55e' : '#ef4444';
+      html += `<div style="border-left:3px solid ${borderColor};
+        padding:4px 8px;margin-bottom:3px;background:var(--bg2,#1e1e2e);border-radius:0 4px 4px 0">
         <div style="display:flex;align-items:center;gap:6px;font-size:10px">
-          <span style="color:${ok?'var(--green)':'var(--red)'};font-weight:600">${ok?'✓':'✗'}</span>
-          <span style="color:var(--text3);font-size:9px">#${t.case_id}</span>
-          <span style="color:var(--text2)">${esc(t.case_name)}</span>
+          <span style="color:${ok?'#22c55e':'#ef4444'};font-weight:700">${ok?'✓':'✗'}</span>
+          <span style="color:#888;font-size:9px">#${t.case_id}</span>
+          <span style="color:var(--text,#e2e2e2)">${esc(t.case_name)}</span>
           <span class="method-badge ${t.method}" style="font-size:8px">${t.method}</span>
-          <span style="color:var(--text3);font-size:9px;margin-left:auto">${time}</span>
+          ${t.code !== undefined ? `<span style="color:${t.code==='200'?'#22c55e':'#ef4444'};font-size:9px">code:${t.code}</span>` : ''}
+          <span style="color:#888;font-size:9px;margin-left:auto">${time}</span>
         </div>
-        <div style="font-size:9px;color:var(--text3);margin-top:2px">${esc(t.url)}</div>
+        <div style="font-size:9px;color:#888;margin-top:2px">${esc(t.url)}</div>
+        ${t.error ? `<div style="font-size:9px;color:#ef4444;margin-top:2px">✗ ${esc(t.error)}</div>` : ''}
         ${deltaKeys.length > 0
-          ? `<div style="font-size:9px;color:var(--cyan);margin-top:3px">
+          ? `<div style="font-size:9px;color:#38bdf8;margin-top:3px">
               ${deltaKeys.map(k => {
                 const d = t.state_delta[k];
-                return `<span style="margin-right:8px">${esc(k)}: <span style="color:var(--text3)">${esc(String(d.from ?? '—'))}</span> → <span style="color:var(--cyan)">${esc(String(d.to ?? '—'))}</span></span>`;
+                return `<span style="margin-right:8px">${esc(k)}: <span style="color:#888">${esc(String(d.from ?? '—'))}</span> → <span style="color:#38bdf8">${esc(String(d.to ?? '—'))}</span></span>`;
               }).join('')}
             </div>`
-          : `<div style="font-size:9px;color:var(--text3);margin-top:2px;opacity:0.5">STATE: no changes</div>`
+          : `<div style="font-size:9px;color:#666;margin-top:2px">STATE: no changes</div>`
         }
+        ${t.response_fail ? `<div style="font-size:9px;color:#ef4444;margin-top:2px;opacity:0.8">${esc(String(t.response_fail.message || ''))}</div>` : ''}
       </div>`;
     });
 
