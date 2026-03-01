@@ -1212,6 +1212,33 @@ async function executeCase(kase) {
       result.status = 'fail';
       result.errorMessage = norm.errorText || ('code=' + norm.code);
       if (currentDiagnostic) { currentDiagnostic.status = 'fail'; currentDiagnostic.errorMessage = result.errorMessage; }
+
+      // Автоматический debug-повтор с info=1 — только при fail, не влияет на state/snapshot
+      try {
+        let debugUrl  = fetchUrl;
+        let debugOpts = { method, headers: { ...fetchOpts.headers } };
+
+        if (method === 'GET') {
+          debugUrl += (debugUrl.includes('?') ? '&' : '?') + 'info=1';
+        } else {
+          // POST — добавляем info=1 к существующему body
+          const debugBody = new URLSearchParams(fetchOpts.body || '');
+          debugBody.set('info', '1');
+          debugOpts.body = debugBody.toString();
+        }
+
+        const debugResp = await fetch(debugUrl, debugOpts);
+        const debugRaw  = await debugResp.text();
+        let debugData = null;
+        try { debugData = JSON.parse(debugRaw); } catch(e) {}
+
+        if (debugData?.info && currentDiagnostic) {
+          currentDiagnostic.response.serverInfo = debugData.info;
+        }
+      } catch(e) {
+        // debug-запрос упал — не ломаем основной результат
+      }
+
       result.durationMs = Date.now() - start;
       result.stateAfter = { ...S.state };
       return result;
