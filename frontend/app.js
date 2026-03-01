@@ -23,7 +23,22 @@ const S = {
   graphNodes: [],        // для панели 4
   previewTab: 'graph',
   debug: { calls: [] },
+  trace:      [],        // полная трасса всех прогонов
+  runCounter: 0,         // счётчик прогонов Auto
 };
+// Добавляем вкладку TRACE в панель превью если её ещё нет
+(function addTraceTab() {
+  const tabBar = document.querySelector('.preview-tabs');
+  if (!tabBar) return;
+  if (tabBar.querySelector('[data-tab="trace"]')) return;
+  const btn = document.createElement('button');
+  btn.className = 'preview-tab';
+  btn.dataset.tab = 'trace';
+  btn.textContent = 'TRACE';
+  btn.onclick = () => switchPreviewTab('trace');
+  tabBar.appendChild(btn);
+})();
+
 // ─────────────────────────────
 // LOGIN
 // ─────────────────────────────
@@ -1000,8 +1015,12 @@ async function startRun(mode) {
   document.getElementById('btnStop').style.display = mode === 'step' ? '' : 'none';
 
   if (mode === 'auto') {
+    S.runCounter++;          // новый прогон — новый ID
     await runNext();
   } else {
+    // step: добавляем шаги в текущий runCounter (не инкрементим)
+    // Если трассы ещё нет — начинаем первый прогон
+    if (S.runCounter === 0) S.runCounter = 1;
     toast('Пошаговый режим. Нажмите → для следующего шага', 'info');
   }
 }
@@ -1076,6 +1095,25 @@ async function runSingle() {
   renderResultItem(result);
   highlightCase(S.activeCase.id, result.status);
   selectResult(result);
+}
+
+// ════════════════════════════════════════════════════════════
+//  TRACE — diffState helper
+// ════════════════════════════════════════════════════════════
+function diffState(before, after) {
+  const delta = {};
+  // Объединяем ключи обоих объектов — фиксируем и добавленные, и удалённые
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  keys.forEach(k => {
+    if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) {
+      delta[k] = { from: before[k], to: after[k] };
+      // Явная метка для удалённых ключей (было — нет после)
+      if (k in before && !(k in after)) {
+        delta[k].removed = true;
+      }
+    }
+  });
+  return delta;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1245,6 +1283,8 @@ async function executeCase(kase) {
     validationResults: [], snapshotAfter: [], stateAfter: {},
     durationMs: 0, errorMessage: '',
   };
+
+  const stateBefore = JSON.parse(JSON.stringify(S.state));
 
   try {
     // Resolve URL and params
@@ -1433,6 +1473,25 @@ async function executeCase(kase) {
 
   result.durationMs  = Date.now() - start;
   result.stateAfter  = { ...S.state };
+
+  // Запись в трассу
+  const stateAfter = JSON.parse(JSON.stringify(S.state));
+  S.trace.push({
+    run_id:       S.runCounter,
+    case_id:      kase.id,
+    case_name:    kase.name,
+    method:       kase.method,
+    url:          result.requestUrl,
+    role:         kase.u_a_role,
+    request:      result.requestBody,
+    response:     result.responseBody,
+    state_before: stateBefore,
+    state_after:  stateAfter,
+    state_delta:  diffState(stateBefore, stateAfter),
+    status:       result.status,
+    timestamp:    new Date().toISOString(),
+  });
+
   return result;
 }
 
@@ -1558,6 +1617,9 @@ function clearResults() {
   S.run.passed = 0;
   S.run.failed = 0;
   S.graphNodes = [];
+  S.trace      = [];
+  S.state      = {};
+  // S.runCounter НЕ сбрасывается — нумерация прогонов сквозная
   document.getElementById('resultsList').innerHTML = `
     <div class="no-results">
       <div class="no-results-icon">📋</div>
@@ -1577,10 +1639,11 @@ function clearResults() {
 function switchPreviewTab(tab) {
   S.previewTab = tab;
   document.querySelectorAll('.preview-tab').forEach((el, i) => {
-    const tabs = ['graph', 'snapshot', 'request', 'state', 'log'];
+    const tabs = ['graph', 'snapshot', 'request', 'state', 'log', 'trace'];
     el.classList.toggle('active', tabs[i] === tab);
   });
-  if (tab === 'log') { renderDebugLog(); return; }
+  if (tab === 'log')   { renderDebugLog(); return; }
+  if (tab === 'trace') { renderTrace(); return; }
   if (S.activeResult) renderPreview(S.activeResult);
   else renderPreviewEmpty(tab);
 }
@@ -1934,6 +1997,10 @@ function toggleTheme() {
   const cols = [];
   let colIndex = 1;
 
+  // Сбрасываем gridColumn у всех панелей и хэндлов — чтобы скрытые не занимали место
+  panels.forEach(p => p.style.gridColumn = 'unset');
+  handles.forEach(h => h.style.gridColumn = 'unset');
+
   visibleIndexes.forEach((panelIndex, idx) => {
 
     // ширина
@@ -2012,6 +2079,138 @@ function toggleTheme() {
 
 })();
 function renderTemplateDebug() { return ''; } // оставлен для совместимости
+
+// ════════════════════════════════════════════════════════════
+//  TRACE (панель 4, таб: TRACE)
+// ════════════════════════════════════════════════════════════
+function renderTrace() {
+  if (S.previewTab !== 'trace') return;
+  const body = document.getElementById('previewBody');
+  if (!S.trace.length) {
+    body.innerHTML = `<div class="empty-state" style="height:100%">
+      <div class="empty-state-icon">🔍</div>
+      <div class="empty-state-text">Трасса появится после прогона</div>
+    </div>`;
+    return;
+  }
+
+  // Группируем по run_id
+  const runs = {};
+  S.trace.forEach(t => {
+    if (!runs[t.run_id]) runs[t.run_id] = [];
+    runs[t.run_id].push(t);
+  });
+
+  let html = `<div style="padding:8px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:10px;color:var(--text3)">${S.trace.length} шагов · ${Object.keys(runs).length} прогонов</span>
+      <button class="btn small primary" style="margin-left:auto" onclick="sendTrace()">📧 Отправить трассу</button>
+    </div>`;
+
+  Object.entries(runs).reverse().forEach(([run_id, steps]) => {
+    const passed  = steps.filter(s => s.status === 'pass').length;
+    const failed  = steps.filter(s => s.status !== 'pass').length;
+    const t0      = steps[0]?.timestamp?.slice(11,19) || '';
+    const t1      = steps[steps.length-1]?.timestamp?.slice(11,19) || '';
+    html += `<div style="margin-bottom:12px">
+      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;padding:6px 8px;background:var(--bg2);border-radius:4px;display:flex;align-items:center;gap:6px">
+        <span>▶ Прогон #${run_id}</span>
+        <span style="color:var(--text3);font-weight:400">${steps.length} шагов</span>
+        <span style="color:var(--green)">${passed} ✓</span>
+        <span style="color:var(--red)">${failed} ✗</span>
+        <span style="color:var(--text3);font-size:9px;margin-left:auto">${t0}${t1 && t0!==t1 ? ' – '+t1 : ''}</span>
+      </div>`;
+
+    steps.forEach(t => {
+      const ok = t.status === 'pass';
+      const deltaKeys = Object.keys(t.state_delta || {});
+      const time = t.timestamp ? t.timestamp.slice(11, 19) : '';
+      html += `<div style="border-left:2px solid ${ok ? 'var(--green)' : 'var(--red)'};
+        padding:4px 8px;margin-bottom:3px;background:var(--bg);border-radius:0 4px 4px 0">
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px">
+          <span style="color:${ok?'var(--green)':'var(--red)'};font-weight:600">${ok?'✓':'✗'}</span>
+          <span style="color:var(--text3);font-size:9px">#${t.case_id}</span>
+          <span style="color:var(--text2)">${esc(t.case_name)}</span>
+          <span class="method-badge ${t.method}" style="font-size:8px">${t.method}</span>
+          <span style="color:var(--text3);font-size:9px;margin-left:auto">${time}</span>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">${esc(t.url)}</div>
+        ${deltaKeys.length > 0
+          ? `<div style="font-size:9px;color:var(--cyan);margin-top:3px">
+              ${deltaKeys.map(k => {
+                const d = t.state_delta[k];
+                return `<span style="margin-right:8px">${esc(k)}: <span style="color:var(--text3)">${esc(String(d.from ?? '—'))}</span> → <span style="color:var(--cyan)">${esc(String(d.to ?? '—'))}</span></span>`;
+              }).join('')}
+            </div>`
+          : `<div style="font-size:9px;color:var(--text3);margin-top:2px;opacity:0.5">STATE: no changes</div>`
+        }
+      </div>`;
+    });
+
+    html += '</div>';
+  });
+
+  html += '</div>';
+  body.innerHTML = html;
+}
+
+async function sendTrace() {
+  const recipients = recipientsManager.activeRecipients();
+  if (recipients.length === 0) {
+    toast('Нет активных получателей. Настройте в ЛОГ → ⚙️ Получатели', 'error');
+    return;
+  }
+
+  const exportData = {
+    base_url:     cfg().baseUrl,
+    login:        cfg().login,
+    run_id:       S.runCounter,
+    generated_at: new Date().toISOString(),
+    trace:        S.trace,
+  };
+
+  // Формируем компактный текстовый отчёт + JSON в конце
+  const lines = [];
+  lines.push(`AssistTest TRACE — Прогон #${S.runCounter}`);
+  lines.push(`${new Date().toLocaleString()} | ${cfg().baseUrl} | ${cfg().login}`);
+  lines.push(`Шагов: ${S.trace.length}`);
+  lines.push('');
+  S.trace.forEach(t => {
+    const delta = Object.entries(t.state_delta || {});
+    lines.push(`[${t.status?.toUpperCase()}] #${t.case_id} ${t.case_name}`);
+    lines.push(`  ${t.method} ${t.url}`);
+    if (delta.length) {
+      delta.forEach(([k, v]) => lines.push(`  Δ ${k}: ${String(v.from ?? '—')} → ${String(v.to ?? '—')}${v.removed ? ' (удалён)' : ''}`));
+    }
+  });
+  lines.push('');
+  lines.push('=== JSON EXPORT ===');
+  lines.push(JSON.stringify(exportData));  // компактный JSON без отступов
+
+  const subject = `AssistTest TRACE run #${S.runCounter} — ${new Date().toLocaleString()}`;
+  const body    = lines.join('
+');
+
+  let sent = 0;
+  for (const r of recipients) {
+    try {
+      const { baseUrl, token, u_hash } = cfg();
+      const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    new URLSearchParams({ token, u_hash, subject, body }).toString(),
+      });
+      const raw = await resp.text();
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch(e) {}
+      if (parsed?.code === '200') sent++;
+      else toast(`Ошибка для id=${r.id_site_email}`, 'error');
+    } catch(e) {
+      toast(`Ошибка: ${e.message}`, 'error');
+    }
+  }
+  if (sent > 0) toast(`Трасса отправлена (${sent}/${recipients.length})`, 'success');
+}
 
 // ════════════════════════════════════════════════════════════
 //  DEBUG LOG (панель 4, таб: Лог)
