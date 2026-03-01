@@ -1902,7 +1902,7 @@ function toggleTheme() {
     panels[i].after(handle);
   }
 
-  let sizes = [240, null, null, 340]; // стартовые
+  let sizes = [240, null, null, null]; // стартовые (null = 1fr)
   let visible = [true, true, true, true];
 
   function buildGrid() {
