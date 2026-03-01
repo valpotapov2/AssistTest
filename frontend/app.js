@@ -686,38 +686,23 @@ function newCase() {
   renderEditor();
 }
 
-// SQL Preview — отправляет payload с info=1, бэк возвращает финальный SQL без выполнения
-async function saveCasePreview() {
-  if (!S.editingCase) return;
-  const vals = collectEditorValues();
-  Object.assign(S.editingCase, vals);
-  const c = S.editingCase;
+// SQL Preview — берёт payload из последнего вызова данного шаблона и отправляет с info=1
+// Бэк возвращает финальный SQL после подстановки, без выполнения
+async function sqlPreview(templateId, entryId) {
+  // Берём payload из конкретного debug entry
+  const entry = S.debug.calls.find(c => c.id === entryId);
+  if (!entry) {
+    toast('Нет данных вызова — сначала выполните запрос', 'error');
+    return;
+  }
+  const vars = entry.payload?.data ? JSON.parse(entry.payload.data) : {};
   try {
-    const payload = {
-      "{{case_id}}":     c.id || 0,
-      "{{suite_id}}":    c.suite,
-      "{{name}}":        c.name,
-      "{{description}}": c.description || '',
-      "{{sort}}":        c.sort || 0,
-      "{{method}}":      c.method,
-      "{{url}}":         c.url,
-      "{{params}}":      c.params || '{}',
-      "{{u_a_role}}":    c.u_a_role || 0,
-      "{{depends_on}}":  c.depends_on || 0,
-      "{{chain_group}}": c.group || '',
-      "{{state_save}}":  typeof c.state_save === 'object'
-        ? JSON.stringify(c.state_save)
-        : (c.state_save || '{}'),
-      "{{validations}}": JSON.stringify(
-        Array.isArray(c.validations) ? c.validations : []
-      ),
-    };
-    await queryTemplate(104, payload, { info: 1 });
+    await queryTemplate(templateId, vars, { info: 1 });
   } catch(e) {
     if (e.message?.startsWith('__info__')) {
-      toast('SQL preview получен — смотри debug log', 'success');
+      toast('SQL Preview получен — смотри блок INFO в debug log', 'success');
     } else {
-      toast(`Ошибка preview: ${e.message}`, 'error');
+      toast(`SQL Preview: ${e.message}`, 'error');
     }
   }
 }
@@ -1791,6 +1776,7 @@ function renderDebugLog() {
             </div>
             <div style="display:flex;gap:4px">
               <button class="btn small" onclick="runTemplateSandbox(${entry.templateId}, ${entry.id})">🧪 Тест</button>
+              <button class="btn small" onclick="sqlPreview(${entry.templateId}, ${entry.id})" title="Отправить запрос с info=1 — вернёт финальный SQL без выполнения">🔍 SQL Preview</button>
               ${S.state.u_id ? `
               <button class="btn small" onclick="cancelTemplateEdit(${entry.templateId}, ${entry.id})">✕ Отмена</button>
               <button class="btn small primary" id="tpl-save-btn-${entry.id}" onclick="saveTemplate(${entry.templateId}, ${entry.id})" disabled>💾 Сохранить</button>
