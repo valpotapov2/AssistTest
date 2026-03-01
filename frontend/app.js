@@ -1008,6 +1008,91 @@ async function runSingle() {
 }
 
 // ════════════════════════════════════════════════════════════
+//  CURRENT DIAGNOSTIC — обновляется после каждого executeCase
+// ════════════════════════════════════════════════════════════
+let currentDiagnostic = null;
+
+function buildCaseDiagnosticReport(diag) {
+  if (!diag) return '(нет данных диагностики)';
+  const lines = [];
+  lines.push('══════════════════════════════════════');
+  lines.push('API TEST — DIAGNOSTIC REPORT');
+  lines.push(`Time:     ${diag.time}`);
+  lines.push(`Base URL: ${diag.baseUrl}`);
+  lines.push(`Login:    ${diag.login}`);
+  lines.push('══════════════════════════════════════');
+  lines.push('');
+  lines.push(`Case:     ${diag.caseName}`);
+  lines.push(`Status:   ${diag.status}`);
+  if (diag.errorMessage) lines.push(`Error:    ${diag.errorMessage}`);
+  lines.push('');
+  lines.push('── REQUEST ──────────────────────────');
+  lines.push(`Method:   ${diag.request.method}`);
+  lines.push(`URL:      ${diag.request.url}`);
+  lines.push('');
+  lines.push('Headers:');
+  lines.push(JSON.stringify(diag.request.headers, null, 2));
+  lines.push('');
+  lines.push('Body (object):');
+  lines.push(JSON.stringify(diag.request.bodyObject, null, 2));
+  lines.push('');
+  lines.push('Body (raw):');
+  lines.push(diag.request.bodyRaw || '(empty)');
+  lines.push('');
+  lines.push('── RESPONSE ─────────────────────────');
+  lines.push(`HTTP:     ${diag.response.httpStatus} ${diag.response.httpStatusText}`);
+  lines.push('');
+  lines.push('Raw:');
+  lines.push(diag.response.raw || '(empty)');
+  lines.push('');
+  lines.push('Parsed:');
+  lines.push(JSON.stringify(diag.response.parsed, null, 2));
+  if (diag.response.serverInfo) {
+    lines.push('');
+    lines.push('── SERVER INFO ──────────────────────');
+    lines.push(JSON.stringify(diag.response.serverInfo, null, 2));
+  }
+  lines.push('');
+  lines.push('── FULL CALL LOG ────────────────────');
+  S.debug.calls.forEach(c => {
+    lines.push(`#${c.id} template/${c.templateId} ${c.time} ${c.error ? '✗ ' + c.error : '✓'}`);
+  });
+  return lines.join('\n');
+}
+
+async function sendCaseDiagnostic() {
+  const recipients = recipientsManager.activeRecipients();
+  if (recipients.length === 0) {
+    toast('Нет активных получателей. Настройте в ЛОГ → ⚙️ Получатели', 'error');
+    return;
+  }
+  const report  = buildCaseDiagnosticReport(currentDiagnostic);
+  const subject = `API Test Diagnostic — ${currentDiagnostic?.caseName || '?'} — ${new Date().toLocaleString()}`;
+  const btn = document.getElementById('btnSendCaseDiag');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Отправка...'; }
+  let sent = 0;
+  for (const r of recipients) {
+    try {
+      const { baseUrl, token, u_hash } = cfg();
+      const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token, u_hash, subject, body: report }).toString(),
+      });
+      const raw = await resp.text();
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch(e) {}
+      if (parsed?.code === '200') sent++;
+      else toast(`Ошибка для id=${r.id_site_email}`, 'error');
+    } catch(e) {
+      toast(`Ошибка: ${e.message}`, 'error');
+    }
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📧 Диагностика'; }
+  if (sent > 0) toast(`Диагностика отправлена (${sent}/${recipients.length})`, 'success');
+}
+
+// ════════════════════════════════════════════════════════════
 //  EXECUTE ONE CASE
 // ════════════════════════════════════════════════════════════
 async function executeCase(kase) {
@@ -1036,6 +1121,30 @@ async function executeCase(kase) {
     let fetchOpts = { method, headers: { 'Accept': 'application/json' } };
     let fetchUrl = baseUrl + url;
 
+    // Инициализируем currentDiagnostic до fetch
+    currentDiagnostic = {
+      time:         new Date().toISOString(),
+      baseUrl:      baseUrl,
+      login:        cfg().login,
+      caseName:     kase.name,
+      status:       'pending',
+      errorMessage: '',
+      request: {
+        method,
+        url:        baseUrl + url,
+        headers:    {},
+        bodyObject: rawParams,
+        bodyRaw:    '',
+      },
+      response: {
+        httpStatus:     0,
+        httpStatusText: '',
+        raw:            '',
+        parsed:         null,
+        serverInfo:     null,
+      },
+    };
+
     if (method === 'GET') {
       const qs = new URLSearchParams(rawParams).toString();
       if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
@@ -1047,12 +1156,26 @@ async function executeCase(kase) {
       fetchOpts.body = body;
     }
 
+    // Сохраняем финальные заголовки и raw body в диагностику
+    if (currentDiagnostic) {
+      currentDiagnostic.request.headers = { ...fetchOpts.headers };
+      currentDiagnostic.request.bodyRaw = fetchOpts.body || '';
+      currentDiagnostic.request.url     = fetchUrl;
+    }
+
     const resp = await fetch(fetchUrl, fetchOpts);
     result.httpStatus = resp.status;
 
     // Читаем raw текст — всегда, даже если не JSON (п.7 чеклиста)
     const rawText = await resp.text();
     result.rawResponseText = rawText;
+
+    // Сохраняем response в диагностику
+    if (currentDiagnostic) {
+      currentDiagnostic.response.httpStatus     = resp.status;
+      currentDiagnostic.response.httpStatusText = resp.statusText;
+      currentDiagnostic.response.raw            = rawText;
+    }
 
     let data = null;
     try { data = JSON.parse(rawText); } catch(e) {
@@ -1064,6 +1187,12 @@ async function executeCase(kase) {
       return result;
     }
     result.responseBody = data;
+
+    // Сохраняем parsed + serverInfo в диагностику
+    if (currentDiagnostic) {
+      currentDiagnostic.response.parsed     = data;
+      currentDiagnostic.response.serverInfo = data?.info || null;
+    }
 
     // Нормализуем ответ (п.2, п.5)
     const norm = normalizeApiResponse(data, kase.url);
@@ -1078,6 +1207,7 @@ async function executeCase(kase) {
     if (!norm.ok) {
       result.status = 'fail';
       result.errorMessage = norm.errorText || ('code=' + norm.code);
+      if (currentDiagnostic) { currentDiagnostic.status = 'fail'; currentDiagnostic.errorMessage = result.errorMessage; }
       result.durationMs = Date.now() - start;
       result.stateAfter = { ...S.state };
       return result;
@@ -1325,7 +1455,10 @@ function renderPreview(result) {
     body.innerHTML = `
       <div class="preview-content">
         <div class="req-section">
-          <div class="req-section-label">Запрос → ${result.requestUrl}</div>
+          <div class="req-section-label" style="display:flex;align-items:center;gap:6px">
+            Запрос → ${result.requestUrl}
+            <button id="btnSendCaseDiag" class="btn small primary" style="margin-left:auto" onclick="sendCaseDiagnostic()">📧 Диагностика</button>
+          </div>
           <div class="req-body json-view">${colorJson(result.requestBody)}</div>
         </div>
         <div class="req-section">
