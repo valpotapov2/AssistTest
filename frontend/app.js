@@ -805,19 +805,37 @@ async function saveCase() {
       "{{sort}}":           c.sort || 0,
       "{{method}}":         c.method,
       "{{url}}":            c.url,
-      "{{params}}":         c.params || '{}',
+
+      // params — всегда строка JSON
+      "{{params}}":
+        typeof c.params === 'object'
+          ? JSON.stringify(c.params)
+          : (c.params || '{}'),
+
       "{{u_a_role}}":       c.u_a_role || 0,
       "{{depends_on}}":     c.depends_on || 0,
       "{{chain_group}}":    c.group || '',
-      "{{state_save}}":     typeof c.state_save === 'object'
-        ? JSON.stringify(c.state_save)
-        : (c.state_save || '{}'),
-      "{{validations}}":    JSON.stringify(
-        Array.isArray(c.validations) ? c.validations : []
-      ),
-      "{{snapshot_config}}": c.snapshot_config || '',
-      "{{tags}}":            c.tags || '',
-      "{{active}}":          typeof c.active !== 'undefined' ? c.active : 1,
+
+      // state_save — всегда строка JSON
+      "{{state_save}}":
+        typeof c.state_save === 'object'
+          ? JSON.stringify(c.state_save)
+          : (c.state_save || '{}'),
+
+      // validations — всегда строка JSON
+      "{{validations}}":
+        Array.isArray(c.validations)
+          ? JSON.stringify(c.validations)
+          : (c.validations || '[]'),
+
+      // snapshot_config — всегда строка JSON (ключевая правка)
+      "{{snapshot_config}}":
+        Array.isArray(c.snapshot_config)
+          ? JSON.stringify(c.snapshot_config)
+          : (c.snapshot_config || ''),
+
+      "{{tags}}":           c.tags || '',
+      "{{active}}":         typeof c.active !== 'undefined' ? c.active : 1,
       // user_id НЕ передаётся — шаблон использует {$_SYS[AUTH][u_id]}
     };
 
