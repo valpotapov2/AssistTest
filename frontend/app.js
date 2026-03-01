@@ -302,14 +302,6 @@ async function queryTemplate(templateId, vars = {}, opts = {}) {
       throw new Error(entry.error);
     }
 
-    // status=info: бэк вернул финальный SQL без выполнения — показываем и прерываем
-    if (norm.info && parsed.status === 'info') {
-      renderDebugLog();
-      const sql = norm.info.sql_final || '(sql not returned)';
-      toast(`ℹ SQL preview template/${templateId} — см. debug log`, 'info');
-      throw new Error(`__info__: ${sql}`);
-    }
-
     renderDebugLog();
     return norm.data;
 
@@ -686,24 +678,64 @@ function newCase() {
   renderEditor();
 }
 
-// SQL Preview — берёт payload из последнего вызова данного шаблона и отправляет с info=1
-// Бэк возвращает финальный SQL после подстановки, без выполнения
+// SQL Preview — изолированный fetch с info=1
+// НЕ вызывает queryTemplate(), НЕ пишет в лог, НЕ показывает error popup
+// Результат выводится только в tpl-sandbox блок данного entry
 async function sqlPreview(templateId, entryId) {
-  // Берём payload из конкретного debug entry
   const entry = S.debug.calls.find(c => c.id === entryId);
+  const outWrap = document.getElementById(`tpl-sandbox-${entryId}`);
+  const out     = document.getElementById(`tpl-sandbox-out-${entryId}`);
+
   if (!entry) {
-    toast('Нет данных вызова — сначала выполните запрос', 'error');
+    if (out) out.innerHTML = '<span style="color:var(--red)">Нет данных вызова — сначала выполните запрос</span>';
+    if (outWrap) outWrap.style.display = 'block';
     return;
   }
-  const vars = entry.payload?.data ? JSON.parse(entry.payload.data) : {};
+
+  if (outWrap) outWrap.style.display = 'block';
+  if (out) out.innerHTML = '<span style="color:var(--text3)">⏳ Загрузка SQL Preview...</span>';
+
   try {
-    await queryTemplate(templateId, vars, { info: 1 });
-  } catch(e) {
-    if (e.message?.startsWith('__info__')) {
-      toast('SQL Preview получен — смотри блок INFO в debug log', 'success');
-    } else {
-      toast(`SQL Preview: ${e.message}`, 'error');
+    const { baseUrl, token, u_hash } = cfg();
+    // Берём data из оригинального payload entry
+    const body = new URLSearchParams({ token, u_hash, info: 1 });
+    if (entry.payload?.data) body.set('data', entry.payload.data);
+
+    const resp = await fetch(`${baseUrl}/query/template/${templateId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+
+    const rawText = await resp.text();
+    let parsed = null;
+    try { parsed = JSON.parse(rawText); } catch(e) {}
+
+    if (out) {
+      if (parsed?.status === 'info' && parsed?.info?.sql_final) {
+        // Успех — показываем финальный SQL
+        out.innerHTML = `
+          <div style="font-size:9px;color:var(--text3);margin-bottom:4px">── FINAL SQL (template/${templateId}) ──</div>
+          <div style="white-space:pre-wrap;color:var(--cyan);font-family:monospace;font-size:10px">${esc(parsed.info.sql_final)}</div>`;
+      } else if (parsed?.code && parsed?.code !== '200') {
+        // Бэк вернул ошибку — показываем без красного попапа
+        const msg = Array.isArray(parsed.message)
+          ? parsed.message.map(m => typeof m === 'object' ? m.message : m).join('
+')
+          : (parsed.message || rawText);
+        out.innerHTML = `
+          <div style="font-size:9px;color:var(--red);margin-bottom:4px">── PREVIEW ERROR (code=${parsed.code}) ──</div>
+          <div style="white-space:pre-wrap;color:var(--red);font-size:10px">${esc(msg)}</div>`;
+      } else {
+        // Неизвестный ответ — показываем raw
+        out.innerHTML = `
+          <div style="font-size:9px;color:var(--text3);margin-bottom:4px">── RAW RESPONSE ──</div>
+          <div style="white-space:pre-wrap;color:var(--text2);font-size:10px">${esc(rawText)}</div>`;
+      }
     }
+  } catch(e) {
+    // Сетевая ошибка — только в sandbox блок, без попапа
+    if (out) out.innerHTML = `<span style="color:var(--red);font-size:10px">Network error: ${esc(e.message)}</span>`;
   }
 }
 
