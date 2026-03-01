@@ -1039,13 +1039,23 @@ async function runNext() {
   R.index++;
 
   // ── Проверка depends_on ──────────────────────────────────
-  // blocked_by ТОЛЬКО если: depId > 0 И depId есть в трассе И depId упал
+  // Правило: blocked ТОЛЬКО если failureRoot уже есть И depId упал
   const depId = kase.depends_on || 0;
-  const depInTrace  = depId > 0 && S.trace.some(t => t.case_id === depId);
-  const depFailed   = depId > 0 && R.failedIds instanceof Set && R.failedIds.has(depId);
-  const isBlocked   = depId > 0 && depInTrace && depFailed;
+
+  // Условие 1: есть failureRoot (значит кто-то уже упал)
+  // Условие 2: depId > 0
+  // Условие 3: depId реально есть в трассе с execution_status === 'fail'
+  // Условие 4: depId есть в failedIds
+  const depTraceEntry = depId > 0
+    ? S.trace.find(t => t.case_id === depId && t.execution_status === 'fail')
+    : null;
+  const isBlocked = R.failureRoot !== null
+    && depId > 0
+    && depTraceEntry !== null
+    && R.failedIds.has(depId);
 
   if (isBlocked) {
+    // blocked_by только реальный id из depTraceEntry
     S.trace.push({
       run_id:           S.runCounter,
       case_id:          kase.id,
@@ -1053,7 +1063,7 @@ async function runNext() {
       method:           kase.method,
       url:              kase.url,
       execution_status: 'blocked',
-      blocked_by:       depId,   // только реальный упавший id
+      blocked_by:       depTraceEntry.case_id, // строго из трассы, никаких fallback
       failure_origin:   false,
       timestamp:        new Date().toISOString(),
       state_delta:      {},
@@ -1066,7 +1076,7 @@ async function runNext() {
       requestUrl: kase.url, requestBody: {},
       responseBody: null, validationResults: [],
       snapshotAfter: [], stateAfter: { ...S.state },
-      durationMs: 0, errorMessage: `Blocked by #${depId}`,
+      durationMs: 0, errorMessage: `Blocked by #${depTraceEntry.case_id}`,
     };
     R.results.push(fakeResult);
     R.failed++;
@@ -1090,14 +1100,14 @@ async function runNext() {
   if (isFail) {
     R.failed++;
     R.failedIds.add(kase.id);
-    // failure_origin = true строго только у первого fail (runFailureRoot === null)
+    // failure_origin строго: только если failureRoot === null (первый fail в прогоне)
     const last = S.trace[S.trace.length - 1];
     if (last && last.case_id === kase.id) {
       if (R.failureRoot === null) {
-        R.failureRoot = kase.id;          // запоминаем первопричину
-        last.failure_origin = true;       // только этот шаг — origin
+        R.failureRoot = kase.id;    // устанавливается ровно один раз
+        last.failure_origin = true;
       } else {
-        last.failure_origin = false;      // все последующие fail — не origin
+        last.failure_origin = false;
       }
     }
   } else {
@@ -1544,13 +1554,13 @@ async function executeCase(kase) {
   const traceMode   = S.traceMode || 'compact';
 
   // Компактная запись — только суть
+  // status не пишем в traceEntry — только execution_status
   const traceEntry = {
     run_id:           S.runCounter,
     case_id:          kase.id,
     case_name:        kase.name,
     method:           kase.method,
     url:              result.requestUrl,
-    status:           result.status,
     execution_status: result.status === 'pass' ? 'pass' : 'fail',
     failure_origin:   false, // будет помечен в runNext если это первый fail
     timestamp:        new Date().toISOString(),
