@@ -701,15 +701,36 @@ function _buildPreviewOutput(rawText, parsed) {
   const info = parsed.info;
   if (!info) return html;
 
-  // INFO.TEMPLATE
+  // INFO.TEMPLATE — может быть объектом {sql, data, sql_final} или строкой
   if (info.template !== undefined) {
-    html += `<div style="margin-bottom:8px">
-      <div style="font-size:9px;color:var(--text3);margin-bottom:2px">── INFO.TEMPLATE ──</div>
-      <div style="white-space:pre-wrap;color:var(--purple);font-size:10px">${esc(String(info.template))}</div>
-    </div>`;
+    if (typeof info.template === 'object' && info.template !== null) {
+      if (info.template.sql !== undefined) {
+        html += `<div style="margin-bottom:8px">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">── INFO.TEMPLATE.SQL ──</div>
+          <div style="white-space:pre-wrap;color:var(--purple);font-size:10px">${esc(String(info.template.sql))}</div>
+        </div>`;
+      }
+      if (info.template.data !== undefined) {
+        html += `<div style="margin-bottom:8px">
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">── INFO.TEMPLATE.DATA ──</div>
+          <div style="white-space:pre-wrap;color:var(--text2);font-size:10px">${esc(JSON.stringify(info.template.data, null, 2))}</div>
+        </div>`;
+      }
+      if (info.template.sql_final !== undefined) {
+        html += `<div style="margin-bottom:8px">
+          <div style="font-size:9px;color:var(--cyan);margin-bottom:2px">── INFO.TEMPLATE.SQL_FINAL ──</div>
+          <div style="white-space:pre-wrap;color:var(--cyan);font-family:monospace;font-size:10px">${esc(String(info.template.sql_final))}</div>
+        </div>`;
+      }
+    } else {
+      html += `<div style="margin-bottom:8px">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:2px">── INFO.TEMPLATE ──</div>
+        <div style="white-space:pre-wrap;color:var(--purple);font-size:10px">${esc(String(info.template))}</div>
+      </div>`;
+    }
   }
 
-  // INFO.DATA
+  // INFO.DATA (верхнего уровня)
   if (info.data !== undefined) {
     html += `<div style="margin-bottom:8px">
       <div style="font-size:9px;color:var(--text3);margin-bottom:2px">── INFO.DATA ──</div>
@@ -717,7 +738,7 @@ function _buildPreviewOutput(rawText, parsed) {
     </div>`;
   }
 
-  // INFO.SQL_FINAL — главное
+  // INFO.SQL_FINAL (верхнего уровня)
   if (info.sql_final !== undefined) {
     html += `<div style="margin-bottom:8px">
       <div style="font-size:9px;color:var(--cyan);margin-bottom:2px">── INFO.SQL_FINAL ──</div>
@@ -777,23 +798,27 @@ async function saveCase() {
  
 
     const payload = {
-      "{{case_id}}":     c.id || 0,
-      "{{suite_id}}":    c.suite,
-      "{{name}}":        c.name,
-      "{{description}}": c.description || '',
-      "{{sort}}":        c.sort || 0,
-      "{{method}}":      c.method,
-      "{{url}}":         c.url,
-      "{{params}}":      c.params || '{}',
-      "{{u_a_role}}":    c.u_a_role || 0,
-      "{{depends_on}}":  c.depends_on || 0,
-      "{{chain_group}}": c.group || '',
-      "{{state_save}}":  typeof c.state_save === 'object'
+      "{{case_id}}":        c.id || 0,
+      "{{suite_id}}":       c.suite,
+      "{{name}}":           c.name,
+      "{{description}}":    c.description || '',
+      "{{sort}}":           c.sort || 0,
+      "{{method}}":         c.method,
+      "{{url}}":            c.url,
+      "{{params}}":         c.params || '{}',
+      "{{u_a_role}}":       c.u_a_role || 0,
+      "{{depends_on}}":     c.depends_on || 0,
+      "{{chain_group}}":    c.group || '',
+      "{{state_save}}":     typeof c.state_save === 'object'
         ? JSON.stringify(c.state_save)
         : (c.state_save || '{}'),
-      "{{validations}}": JSON.stringify(
+      "{{validations}}":    JSON.stringify(
         Array.isArray(c.validations) ? c.validations : []
       ),
+      "{{snapshot_config}}": c.snapshot_config || '',
+      "{{tags}}":            c.tags || '',
+      "{{active}}":          typeof c.active !== 'undefined' ? c.active : 1,
+      // user_id НЕ передаётся — шаблон использует {$_SYS[AUTH][u_id]}
     };
 
     await queryTemplate(104, payload);
@@ -2019,6 +2044,16 @@ function buildDiagnosticReport(entry) {
   S.debug.calls.forEach(c => {
     lines.push(`#${c.id} template/${c.templateId} ${c.time} ${c.error ? '✗ ' + c.error : '✓'}`);
   });
+
+  // TEMPLATE DEBUG PANEL — содержимое sandbox блока последнего entry
+  if (entry) {
+    const sandboxEl = document.getElementById(`tpl-sandbox-out-${entry.id}`);
+    if (sandboxEl && sandboxEl.innerText?.trim()) {
+      lines.push('');
+      lines.push('── TEMPLATE DEBUG PANEL ─────────────');
+      lines.push(sandboxEl.innerText.trim());
+    }
+  }
 
   return lines.join('\n');
 }
