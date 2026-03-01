@@ -1039,9 +1039,11 @@ async function runNext() {
   R.index++;
 
   // ── Проверка depends_on ──────────────────────────────────
-  // blocked_by только если depId > 0 И реально есть в failedIds
-  const depId     = kase.depends_on || 0;
-  const isBlocked = depId > 0 && R.failedIds instanceof Set && R.failedIds.has(depId);
+  // blocked_by ТОЛЬКО если: depId > 0 И depId есть в трассе И depId упал
+  const depId = kase.depends_on || 0;
+  const depInTrace  = depId > 0 && S.trace.some(t => t.case_id === depId);
+  const depFailed   = depId > 0 && R.failedIds instanceof Set && R.failedIds.has(depId);
+  const isBlocked   = depId > 0 && depInTrace && depFailed;
 
   if (isBlocked) {
     S.trace.push({
@@ -1088,12 +1090,15 @@ async function runNext() {
   if (isFail) {
     R.failed++;
     R.failedIds.add(kase.id);
-    // failure_origin = true только у первого fail в этом прогоне
-    const isFirstFail = R.failureRoot === null;
-    if (isFirstFail) {
-      R.failureRoot = kase.id;
-      const last = S.trace[S.trace.length - 1];
-      if (last && last.case_id === kase.id) last.failure_origin = true;
+    // failure_origin = true строго только у первого fail (runFailureRoot === null)
+    const last = S.trace[S.trace.length - 1];
+    if (last && last.case_id === kase.id) {
+      if (R.failureRoot === null) {
+        R.failureRoot = kase.id;          // запоминаем первопричину
+        last.failure_origin = true;       // только этот шаг — origin
+      } else {
+        last.failure_origin = false;      // все последующие fail — не origin
+      }
     }
   } else {
     R.passed++;
@@ -2309,7 +2314,7 @@ async function sendTrace() {
   lines.push('');
   S.trace.forEach(t => {
     const delta = Object.entries(t.state_delta || {});
-    lines.push(`[${t.status?.toUpperCase()}] #${t.case_id} ${t.case_name}`);
+    lines.push(`[${(t.execution_status || t.status || 'unknown').toUpperCase()}] #${t.case_id} ${t.case_name}`);
     lines.push(`  ${t.method} ${t.url}`);
     if (delta.length) {
       delta.forEach(([k, v]) => lines.push(`  Δ ${k}: ${String(v.from ?? '—')} → ${String(v.to ?? '—')}${v.removed ? ' (удалён)' : ''}`));
