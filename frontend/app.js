@@ -999,6 +999,8 @@ async function startRun(mode) {
     results: [], passed: 0, failed: 0,
     startedAt: Date.now(),
     runId: null,
+    failureRoot: null,   // id первого упавшего шага
+    failedIds: new Set(), // все упавшие id для блокировки по depends_on
   };
 
   // Сохраняем токен между запусками, сбрасываем только контекстные переменные
@@ -1034,13 +1036,68 @@ async function runNext() {
   }
 
   const kase = R.queue[R.index];
+  R.index++;
+
+  // ── Проверка depends_on ──────────────────────────────────
+  const depId = kase.depends_on;
+  const isBlocked = depId && R.failedIds && R.failedIds.has(depId);
+
+  if (isBlocked) {
+    // Шаг заблокирован — логируем в TRACE и пропускаем
+    S.trace.push({
+      run_id:           S.runCounter,
+      case_id:          kase.id,
+      case_name:        kase.name,
+      method:           kase.method,
+      url:              kase.url,
+      execution_status: 'blocked',
+      blocked_by:       depId,
+      failure_origin:   false,
+      timestamp:        new Date().toISOString(),
+      state_delta:      {},
+    });
+
+    highlightCase(kase.id, 'skip');
+    const fakeResult = {
+      caseId: kase.id, caseName: kase.name,
+      status: 'skip', httpStatus: 0,
+      requestUrl: kase.url, requestBody: {},
+      responseBody: null, validationResults: [],
+      snapshotAfter: [], stateAfter: { ...S.state },
+      durationMs: 0, errorMessage: `Blocked by #${depId}`,
+    };
+    R.results.push(fakeResult);
+    R.failed++;
+    renderResultItem(fakeResult);
+    updateProgress();
+
+    if (R.mode === 'auto' && R.active) {
+      await sleep(50);
+      await runNext();
+    }
+    return;
+  }
+
   highlightCase(kase.id, 'running');
-  setRunStatus('running', `${R.index + 1}/${R.queue.length}: ${kase.name}`);
+  setRunStatus('running', `${R.index}/${R.queue.length}: ${kase.name}`);
 
   const result = await executeCase(kase);
   R.results.push(result);
-  if (result.status === 'pass') R.passed++; else R.failed++;
-  R.index++;
+
+  const isFail = result.status !== 'pass';
+  if (isFail) {
+    R.failed++;
+    if (!R.failureRoot) R.failureRoot = kase.id;
+    if (!R.failedIds)   R.failedIds   = new Set();
+    R.failedIds.add(kase.id);
+    // Помечаем первопричину в трассе
+    if (R.failureRoot === kase.id) {
+      const last = S.trace[S.trace.length - 1];
+      if (last && last.case_id === kase.id) last.failure_origin = true;
+    }
+  } else {
+    R.passed++;
+  }
 
   renderResultItem(result);
   updateProgress();
@@ -1483,14 +1540,16 @@ async function executeCase(kase) {
 
   // Компактная запись — только суть
   const traceEntry = {
-    run_id:      S.runCounter,
-    case_id:     kase.id,
-    case_name:   kase.name,
-    method:      kase.method,
-    url:         result.requestUrl,
-    status:      result.status,
-    timestamp:   new Date().toISOString(),
-    state_delta: stateDelta,
+    run_id:           S.runCounter,
+    case_id:          kase.id,
+    case_name:        kase.name,
+    method:           kase.method,
+    url:              result.requestUrl,
+    status:           result.status,
+    execution_status: result.status === 'pass' ? 'pass' : 'fail',
+    failure_origin:   false, // будет помечен в runNext если это первый fail
+    timestamp:        new Date().toISOString(),
+    state_delta:      stateDelta,
   };
 
   // HTTP code + краткая ошибка при FAIL
@@ -2159,30 +2218,61 @@ function renderTrace() {
       </div>`;
 
     steps.forEach(t => {
-      const ok = t.status === 'pass';
+      const exStatus = t.execution_status || (t.status === 'pass' ? 'pass' : 'fail');
+      const isBlocked  = exStatus === 'blocked';
+      const isSkipped  = exStatus === 'skipped';
+      const isPass     = exStatus === 'pass';
+      const isOrigin   = t.failure_origin === true;
+
+      const borderColor = isPass    ? '#22c55e'
+                        : isBlocked ? '#555'
+                        : isSkipped ? '#444'
+                        : isOrigin  ? '#ff2222'
+                        :             '#ef4444';
+
+      const icon = isPass    ? '✓'
+                 : isBlocked ? '⊘'
+                 : isSkipped ? '–'
+                 : isOrigin  ? '🔴'
+                 :             '✗';
+
+      const iconColor = isPass    ? '#22c55e'
+                      : isBlocked ? '#666'
+                      : isSkipped ? '#555'
+                      : isOrigin  ? '#ff2222'
+                      :             '#ef4444';
+
+      const nameColor  = isBlocked || isSkipped ? '#555' : '#e2e2e2';
+      const bgColor    = isOrigin  ? '#2a0a0a'
+                       : isBlocked ? '#1a1a1a'
+                       : '#1e1e2e';
+
       const deltaKeys = Object.keys(t.state_delta || {});
       const time = t.timestamp ? t.timestamp.slice(11, 19) : '';
-      const borderColor = ok ? '#22c55e' : '#ef4444';
+
       html += `<div style="border-left:3px solid ${borderColor};
-        padding:4px 8px;margin-bottom:3px;background:var(--bg2,#1e1e2e);border-radius:0 4px 4px 0">
+        padding:4px 8px;margin-bottom:3px;background:${bgColor};border-radius:0 4px 4px 0">
         <div style="display:flex;align-items:center;gap:6px;font-size:10px">
-          <span style="color:${ok?'#22c55e':'#ef4444'};font-weight:700">${ok?'✓':'✗'}</span>
+          <span style="color:${iconColor};font-weight:700">${icon}</span>
           <span style="color:#888;font-size:9px">#${t.case_id}</span>
-          <span style="color:var(--text,#e2e2e2)">${esc(t.case_name)}</span>
-          <span class="method-badge ${t.method}" style="font-size:8px">${t.method}</span>
+          <span style="color:${nameColor}">${esc(t.case_name)}</span>
+          ${t.method ? `<span class="method-badge ${t.method}" style="font-size:8px">${t.method}</span>` : ''}
           ${t.code !== undefined ? `<span style="color:${t.code==='200'?'#22c55e':'#ef4444'};font-size:9px">code:${t.code}</span>` : ''}
+          ${isOrigin  ? `<span style="color:#ff2222;font-size:9px;font-weight:700">← первопричина</span>` : ''}
+          ${isBlocked ? `<span style="color:#666;font-size:9px">blocked by #${t.blocked_by}</span>` : ''}
+          ${isSkipped ? `<span style="color:#555;font-size:9px">skipped</span>` : ''}
           <span style="color:#888;font-size:9px;margin-left:auto">${time}</span>
         </div>
-        <div style="font-size:9px;color:#888;margin-top:2px">${esc(t.url)}</div>
-        ${t.error ? `<div style="font-size:9px;color:#ef4444;margin-top:2px">✗ ${esc(t.error)}</div>` : ''}
-        ${deltaKeys.length > 0
+        ${t.url ? `<div style="font-size:9px;color:#666;margin-top:2px">${esc(t.url)}</div>` : ''}
+        ${t.error && !isBlocked ? `<div style="font-size:9px;color:#ef4444;margin-top:2px">✗ ${esc(t.error)}</div>` : ''}
+        ${!isBlocked && !isSkipped && deltaKeys.length > 0
           ? `<div style="font-size:9px;color:#38bdf8;margin-top:3px">
               ${deltaKeys.map(k => {
                 const d = t.state_delta[k];
                 return `<span style="margin-right:8px">${esc(k)}: <span style="color:#888">${esc(String(d.from ?? '—'))}</span> → <span style="color:#38bdf8">${esc(String(d.to ?? '—'))}</span></span>`;
               }).join('')}
             </div>`
-          : `<div style="font-size:9px;color:#666;margin-top:2px">STATE: no changes</div>`
+          : (!isBlocked && !isSkipped ? `<div style="font-size:9px;color:#444;margin-top:2px">STATE: no changes</div>` : '')
         }
         ${t.response_fail ? `<div style="font-size:9px;color:#ef4444;margin-top:2px;opacity:0.8">${esc(String(t.response_fail.message || ''))}</div>` : ''}
       </div>`;
