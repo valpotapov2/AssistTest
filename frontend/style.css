@@ -918,3 +918,12 @@ body {
   0%   { background: var(--yellow, #f5a62344); }
   100% { background: transparent; }
 }
+
+/* Скрытые панели не должны занимать место в grid */
+.panel[style*="display: none"],
+.panel[style*="display:none"] {
+  grid-column: unset !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
