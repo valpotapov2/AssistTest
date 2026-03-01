@@ -1039,11 +1039,11 @@ async function runNext() {
   R.index++;
 
   // ── Проверка depends_on ──────────────────────────────────
-  const depId = kase.depends_on;
-  const isBlocked = depId && R.failedIds && R.failedIds.has(depId);
+  // blocked_by только если depId > 0 И реально есть в failedIds
+  const depId     = kase.depends_on || 0;
+  const isBlocked = depId > 0 && R.failedIds instanceof Set && R.failedIds.has(depId);
 
   if (isBlocked) {
-    // Шаг заблокирован — логируем в TRACE и пропускаем
     S.trace.push({
       run_id:           S.runCounter,
       case_id:          kase.id,
@@ -1051,7 +1051,7 @@ async function runNext() {
       method:           kase.method,
       url:              kase.url,
       execution_status: 'blocked',
-      blocked_by:       depId,
+      blocked_by:       depId,   // только реальный упавший id
       failure_origin:   false,
       timestamp:        new Date().toISOString(),
       state_delta:      {},
@@ -1087,11 +1087,11 @@ async function runNext() {
   const isFail = result.status !== 'pass';
   if (isFail) {
     R.failed++;
-    if (!R.failureRoot) R.failureRoot = kase.id;
-    if (!R.failedIds)   R.failedIds   = new Set();
     R.failedIds.add(kase.id);
-    // Помечаем первопричину в трассе
-    if (R.failureRoot === kase.id) {
+    // failure_origin = true только у первого fail в этом прогоне
+    const isFirstFail = R.failureRoot === null;
+    if (isFirstFail) {
+      R.failureRoot = kase.id;
       const last = S.trace[S.trace.length - 1];
       if (last && last.case_id === kase.id) last.failure_origin = true;
     }
@@ -2204,8 +2204,8 @@ function renderTrace() {
     </div>`;
 
   Object.entries(runs).reverse().forEach(([run_id, steps]) => {
-    const passed  = steps.filter(s => s.status === 'pass').length;
-    const failed  = steps.filter(s => s.status !== 'pass').length;
+    const passed  = steps.filter(s => (s.execution_status || s.status) === 'pass').length;
+    const failed  = steps.filter(s => (s.execution_status || s.status) !== 'pass').length;
     const t0      = steps[0]?.timestamp?.slice(11,19) || '';
     const t1      = steps[steps.length-1]?.timestamp?.slice(11,19) || '';
     html += `<div style="margin-bottom:12px">
