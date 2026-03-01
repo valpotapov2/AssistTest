@@ -900,3 +900,21 @@ body {
   top: 0;
   z-index: 2;
 }
+
+/* ── Filter warning & highlight ───────────────────── */
+#filterWarning {
+  display: none;
+  font-size: 9px;
+  color: var(--yellow, #f5a623);
+  padding: 2px 8px 4px;
+  line-height: 1.4;
+}
+
+.case-item.filter-highlight {
+  animation: filterPulse 1.5s ease-out;
+}
+
+@keyframes filterPulse {
+  0%   { background: var(--yellow, #f5a62344); }
+  100% { background: transparent; }
+}
