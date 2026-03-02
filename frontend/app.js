@@ -55,7 +55,7 @@ async function login() {
     }
 
     // Шаг 1 — auth
-    const d1 = await apiPost('/auth/', {
+    const d1 = await apiPost('/auth', {
       login,
       type: 'e-mail',
       password
@@ -161,6 +161,7 @@ async function apiPost(url, bodyObj) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
+    credentials: 'omit',
   });
   return resp.json();
 }
@@ -173,6 +174,7 @@ async function apiPostRaw(url, bodyObj) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
+    credentials: 'omit',
   });
 }
 
@@ -181,6 +183,7 @@ async function apiGet(url, params = {}) {
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
     headers: { 'Accept': 'application/json' },
+    credentials: 'omit',
   });
   return resp.json();
 }
@@ -361,7 +364,7 @@ async function init() {
     const { baseUrl, login, password } = cfg();
 
     // Шаг 1: auth_hash
-    const d1 = await apiPost('/auth/', { login, type: 'e-mail', password });
+    const d1 = await apiPost('/auth', { login, type: 'e-mail', password });
     if (d1.code !== '200' || !d1.auth_hash)
       throw new Error(d1.message || 'auth step 1 failed');
 
@@ -1415,7 +1418,7 @@ async function executeCase(kase) {
     result.requestUrl  = baseUrl + url;
     result.requestBody = rawParams;
 
-    let fetchOpts = { method, headers: { 'Accept': 'application/json' } };
+    let fetchOpts = { method, headers: { 'Accept': 'application/json' }, credentials: 'omit' };
     let fetchUrl = baseUrl + url;
 
     // Инициализируем currentDiagnostic до fetch
