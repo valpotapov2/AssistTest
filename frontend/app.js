@@ -26,6 +26,7 @@ const S = {
   trace:      [],        // полная трасса всех прогонов
   runCounter: 0,         // счётчик прогонов Auto
   traceMode:  'compact', // 'compact' | 'full'
+  autoDebug:  null,      // диагностика последнего Auto-планировщика
 };
 // Добавляем вкладку TRACE в панель превью если её ещё нет
 (function addTraceTab() {
@@ -1019,6 +1020,48 @@ async function startRun(mode) {
 
   if (mode === 'auto') {
     S.runCounter++;          // новый прогон — новый ID
+
+    // ── AUTO DEBUG: диагностика планировщика (не влияет на выполнение) ──
+    const allSuiteCases = S.cases.filter(c => c.suite === S.activeSuite.id);
+    const candidateCases = allSuiteCases.map(c => ({
+      case_id:     c.id,
+      name:        c.name,
+      sort:        c.sort,
+      chain_group: c.group || '',
+      depends_on:  c.depends_on || 0,
+      u_a_role:    c.u_a_role,
+      active:      c.active,
+      url:         c.url,
+    }));
+
+    // Кейсы которые попали в очередь
+    const queueIds = new Set(cases.map(c => c.id));
+
+    // Кейсы которые НЕ попали в очередь — с причиной
+    const excludedCases = allSuiteCases
+      .filter(c => !queueIds.has(c.id))
+      .map(c => ({
+        case_id: c.id,
+        name:    c.name,
+        reason_excluded: c.active === 0 ? 'inactive' : 'unknown',
+      }));
+
+    const executionQueue = cases.map(c => ({
+      case_id:    c.id,
+      name:       c.name,
+      sort:       c.sort,
+      depends_on: c.depends_on || 0,
+    }));
+
+    S.autoDebug = {
+      run_id:          S.runCounter,
+      timestamp:       new Date().toISOString(),
+      candidate_cases: candidateCases,
+      excluded_cases:  excludedCases,
+      execution_queue: executionQueue,
+    };
+    // ────────────────────────────────────────────────────────────
+
     await runNext();
   } else {
     // step: добавляем шаги в текущий runCounter (не инкрементим)
@@ -1723,6 +1766,7 @@ function clearResults() {
   S.graphNodes = [];
   S.trace      = [];
   S.state      = {};
+  S.autoDebug  = null;
   // S.runCounter НЕ сбрасывается — нумерация прогонов сквозная
   document.getElementById('resultsList').innerHTML = `
     <div class="no-results">
@@ -2217,6 +2261,22 @@ function renderTrace() {
       <button class="btn small danger" onclick="S.trace=[];S.runCounter=0;renderTrace()">🗑 Очистить трассу</button>
       <button class="btn small primary" style="margin-left:auto" onclick="sendTrace()">📧 Отправить трассу</button>
     </div>`;
+
+  // ── AUTO DEBUG блок ────────────────────────────────────
+  if (S.autoDebug) {
+    const d = S.autoDebug;
+    const excluded = d.excluded_cases || [];
+    html += `<div style="margin-bottom:10px;padding:6px 8px;background:#1a1a2e;border:1px solid #333;border-radius:4px;font-size:9px;color:#888">
+      <div style="color:#38bdf8;font-weight:600;margin-bottom:4px">⚙ Auto Debug — Прогон #${d.run_id} · ${d.timestamp?.slice(11,19)||''}</div>
+      <div>Кандидатов: <span style="color:#e2e2e2">${d.candidate_cases?.length||0}</span>
+        · В очереди: <span style="color:#22c55e">${d.execution_queue?.length||0}</span>
+        · Исключено: <span style="color:${excluded.length?'#ef4444':'#888'}">${excluded.length}</span>
+      </div>
+      ${excluded.length ? `<div style="margin-top:4px;color:#ef4444">
+        Исключены: ${excluded.map(e => `#${e.case_id} ${e.name} (${e.reason_excluded})`).join(', ')}
+      </div>` : ''}
+    </div>`;
+  }
 
   Object.entries(runs).reverse().forEach(([run_id, steps]) => {
     const passed  = steps.filter(s => (s.execution_status || s.status) === 'pass').length;
