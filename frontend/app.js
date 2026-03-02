@@ -160,6 +160,7 @@ async function apiPost(url, bodyObj) {
   const resp = await fetch(baseUrl + url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'omit',
     body: body.toString(),
     credentials: 'omit',
   });
@@ -183,7 +184,8 @@ async function apiGet(url, params = {}) {
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
     headers: { 'Accept': 'application/json' },
-    credentials: 'omit',
+      credentials: 'omit',
+
   });
   return resp.json();
 }
@@ -847,7 +849,9 @@ async function sqlPreview(templateId, entryId) {
     const resp = await fetch(`${baseUrl}/query/template/${templateId}`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'omit',
       body:    body.toString(),
+      credentials: 'omit',
     });
     rawText = await resp.text();
     try { parsed = JSON.parse(rawText); } catch(e) {}
@@ -1305,7 +1309,9 @@ async function sendCaseDiagnostic() {
       const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'omit',
         body: new URLSearchParams({ token, u_hash, subject, body: report }).toString(),
+        credentials: 'omit',
       });
       const raw = await resp.text();
       let parsed = null;
@@ -1575,7 +1581,8 @@ async function executeCase(kase) {
           let su = cfg().baseUrl + snapUrl;
           const sq = new URLSearchParams({ ...snapParams, token: S.state.token||'', u_hash: S.state.u_hash||'' }).toString();
           su += (su.includes('?') ? '&' : '?') + sq;
-          const sr = await fetch(su, { method: snap.method || 'GET', headers: { Accept: 'application/json' } });
+          const sr = await fetch(su, { method: snap.method || 'GET', headers: { Accept: 'application/json' },
+      credentials: 'omit', credentials: 'omit' });
           const sd = await sr.json();
           result.snapshotAfter.push({ label: snap.label, data: sd });
           updateGraph(snap.label, sd, kase);
@@ -2407,7 +2414,9 @@ async function sendTrace() {
       const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'omit',
         body:    new URLSearchParams({ token, u_hash, subject, body }).toString(),
+        credentials: 'omit',
       });
       const raw = await resp.text();
       let parsed = null;
@@ -2805,6 +2814,7 @@ async function sendDiagnostic(entryId) {
         const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'omit',
           body: new URLSearchParams({ token, u_hash, subject, body: report }).toString(),
         });
         const raw = await resp.text();
@@ -2899,6 +2909,7 @@ async function loadTemplate(templateId, entryId) {
     const resp = await fetch(`${baseUrl}/data/?private`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'omit',
       body: new URLSearchParams({ token, u_hash }).toString(),
     });
     const raw = await resp.text();
@@ -2944,6 +2955,7 @@ async function saveTemplate(templateId, entryId) {
     const resp = await fetch(`${baseUrl}/data`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      credentials: 'omit',
       body: new URLSearchParams({ token, u_hash, data }).toString(),
     });
     const raw  = await resp.text();
