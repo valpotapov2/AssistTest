@@ -1086,6 +1086,8 @@ async function runNext() {
   // Правило: blocked если depends_on > 0 И родитель не выполнен успешно
   const depId = kase.depends_on || 0;
 
+  // Строгая проверка: родитель должен быть в trace с execution_status === 'pass'
+  // Если родитель отсутствует в trace или упал — кейс blocked
   const depTraceEntry = depId > 0
     ? S.trace.find(t => t.case_id === depId)
     : null;
@@ -1114,7 +1116,7 @@ async function runNext() {
       requestUrl: kase.url, requestBody: {},
       responseBody: null, validationResults: [],
       snapshotAfter: [], stateAfter: { ...S.state },
-      durationMs: 0, errorMessage: `Blocked by #${depTraceEntry.case_id}`,
+      durationMs: 0, errorMessage: `Blocked by #${blockedById}`,
     };
     R.results.push(fakeResult);
     R.failed++;
@@ -2353,30 +2355,6 @@ function renderTrace() {
 
   html += '</div>';
   body.innerHTML = html;
-}
-
-async function exportSuiteSnapshot() {
-  if (!S.activeSuite) { toast('Выберите набор тестов', 'error'); return; }
-  const recipients = recipientsManager.activeRecipients();
-  if (recipients.length === 0) { toast('Нет активных получателей', 'error'); return; }
-  const suiteSnapshot = S.cases
-    .filter(c => c.suite === S.activeSuite.id)
-    .sort((a, b) => a.sort - b.sort)
-    .map(c => ({ case_id: c.id, suite: c.suite, sort: c.sort, active: c.active, chain_group: c.group || '', depends_on: c.depends_on || 0, method: c.method, url: c.url }));
-  const exportData = { type: 'suite_snapshot', suite_id: S.activeSuite.id, suite_name: S.activeSuite.name, exported_at: new Date().toISOString(), cases: suiteSnapshot };
-  const subject = `AssistTest Suite Snapshot — ${S.activeSuite.name} — ${new Date().toLocaleString()}`;
-  const body = JSON.stringify(exportData, null, 2);
-  let sent = 0;
-  for (const r of recipients) {
-    try {
-      const { baseUrl, token, u_hash } = cfg();
-      const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({ token, u_hash, subject, body }).toString() });
-      const raw = await resp.text();
-      let parsed = null; try { parsed = JSON.parse(raw); } catch(e) {}
-      if (parsed?.code === '200') sent++; else toast('Ошибка отправки', 'error');
-    } catch(e) { toast('Ошибка: ' + e.message, 'error'); }
-  }
-  if (sent > 0) toast('Suite Snapshot отправлен (' + sent + '/' + recipients.length + ')', 'success');
 }
 
 async function sendTrace() {
