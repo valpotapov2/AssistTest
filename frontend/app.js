@@ -1137,35 +1137,7 @@ async function runNext() {
   highlightCase(kase.id, 'running');
   setRunStatus('running', `${R.index}/${R.queue.length}: ${kase.name}`);
 
-  let result;
-  try {
-    result = await executeCase(kase);
-  } catch (err) {
-    // executeCase бросил исключение до S.trace.push — пишем аварийную запись
-    S.trace.push({
-      run_id:           S.runCounter,
-      case_id:          kase.id,
-      case_name:        kase.name,
-      method:           kase.method,
-      url:              kase.url,
-      execution_status: 'fail',
-      failure_origin:   R.failureRoot === null,
-      error:            `EXCEPTION: ${String(err)}`,
-      timestamp:        new Date().toISOString(),
-      state_delta:      {},
-    });
-    if (R.failureRoot === null) R.failureRoot = kase.id;
-    R.failedIds.add(kase.id);
-    R.failed++;
-    highlightCase(kase.id, 'fail');
-    updateProgress();
-    if (R.mode === 'auto' && R.active) {
-      await sleep(180);
-      await runNext();
-    }
-    return;
-  }
-
+  const result = await executeCase(kase);
   R.results.push(result);
 
   const isFail = result.status !== 'pass';
@@ -2289,6 +2261,7 @@ function renderTrace() {
       </button>
       <button class="btn small danger" onclick="S.trace=[];S.runCounter=0;renderTrace()">🗑 Очистить трассу</button>
       <button class="btn small primary" style="margin-left:auto" onclick="sendTrace()">📧 Отправить трассу</button>
+      <button class="btn small primary" onclick="exportSuiteSnapshot()">📦 Экспорт набора</button>
     </div>`;
 
   // ── AUTO DEBUG блок ────────────────────────────────────
@@ -2387,6 +2360,63 @@ function renderTrace() {
 
   html += '</div>';
   body.innerHTML = html;
+}
+
+async function exportSuiteSnapshot() {
+  if (!S.activeSuite) {
+    toast('Выберите набор тестов', 'error');
+    return;
+  }
+  const recipients = recipientsManager.activeRecipients();
+  if (recipients.length === 0) {
+    toast('Нет активных получателей. Настройте в ЛОГ → ⚙️ Получатели', 'error');
+    return;
+  }
+
+  const suiteSnapshot = S.cases
+    .filter(c => c.suite === S.activeSuite.id)
+    .sort((a, b) => a.sort - b.sort)
+    .map(c => ({
+      case_id:     c.id,
+      suite:       c.suite,
+      sort:        c.sort,
+      active:      c.active,
+      chain_group: c.group || '',
+      depends_on:  c.depends_on || 0,
+      method:      c.method,
+      url:         c.url,
+    }));
+
+  const exportData = {
+    type:        'suite_snapshot',
+    suite_id:    S.activeSuite.id,
+    suite_name:  S.activeSuite.name,
+    exported_at: new Date().toISOString(),
+    cases:       suiteSnapshot,
+  };
+
+  const subject = `AssistTest Suite Snapshot — ${S.activeSuite.name} — ${new Date().toLocaleString()}`;
+  const body    = JSON.stringify(exportData, null, 2);
+
+  let sent = 0;
+  for (const r of recipients) {
+    try {
+      const { baseUrl, token, u_hash } = cfg();
+      const resp = await fetch(`${baseUrl}/mail/${r.id_site_email}/send`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    new URLSearchParams({ token, u_hash, subject, body }).toString(),
+      });
+      const raw = await resp.text();
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch(e) {}
+      if (parsed?.code === '200') sent++;
+      else toast(`Ошибка для id=${r.id_site_email}`, 'error');
+    } catch(e) {
+      toast(`Ошибка: ${e.message}`, 'error');
+    }
+  }
+  if (sent > 0) toast(`Suite Snapshot отправлен (${sent}/${recipients.length})`, 'success');
 }
 
 async function sendTrace() {
