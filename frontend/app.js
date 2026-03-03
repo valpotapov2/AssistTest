@@ -1137,7 +1137,35 @@ async function runNext() {
   highlightCase(kase.id, 'running');
   setRunStatus('running', `${R.index}/${R.queue.length}: ${kase.name}`);
 
-  const result = await executeCase(kase);
+  let result;
+  try {
+    result = await executeCase(kase);
+  } catch (err) {
+    // executeCase бросил исключение до S.trace.push — пишем аварийную запись
+    S.trace.push({
+      run_id:           S.runCounter,
+      case_id:          kase.id,
+      case_name:        kase.name,
+      method:           kase.method,
+      url:              kase.url,
+      execution_status: 'fail',
+      failure_origin:   R.failureRoot === null,
+      error:            `EXCEPTION: ${String(err)}`,
+      timestamp:        new Date().toISOString(),
+      state_delta:      {},
+    });
+    if (R.failureRoot === null) R.failureRoot = kase.id;
+    R.failedIds.add(kase.id);
+    R.failed++;
+    highlightCase(kase.id, 'fail');
+    updateProgress();
+    if (R.mode === 'auto' && R.active) {
+      await sleep(180);
+      await runNext();
+    }
+    return;
+  }
+
   R.results.push(result);
 
   const isFail = result.status !== 'pass';
