@@ -1062,7 +1062,6 @@ async function apiPost(url, bodyObj) {
 
   const resp = await fetch(baseUrl + url, {
     method: 'POST',
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
     },
@@ -1077,7 +1076,6 @@ async function apiGet(url, params = {}) {
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
 
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
-    credentials: 'include',   // ← ОБЯЗАТЕЛЬНО
     headers: { 'Accept': 'application/json' },
   });
 
