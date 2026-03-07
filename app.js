@@ -2156,7 +2156,8 @@ function toggleTheme() {
     // если не последняя — добавляем handle
     if (idx < visibleIndexes.length - 1) {
 
-      const handle = handles[panelIndex];
+      // ищем handle по data-index, а не по позиции в NodeList
+      const handle = ws.querySelector('.resize-handle[data-index="' + panelIndex + '"]');
       if (handle) {
         handle.style.display = 'block';
         handle.style.gridColumn = colIndex;
