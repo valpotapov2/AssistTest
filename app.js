@@ -2100,7 +2100,7 @@ function toggleTheme() {
 
   if (panels.length !== 4) return;
 
-  // --- Вставляем resize handles между панелями ---
+  // Вставляем resize handles: panel0, handle0, panel1, handle1, panel2, handle2, panel3
   for (let i = 0; i < 3; i++) {
     const handle = document.createElement('div');
     handle.className = 'resize-handle';
@@ -2108,68 +2108,37 @@ function toggleTheme() {
     panels[i].after(handle);
   }
 
-  let sizes = [240, null, null, null]; // стартовые (null = 1fr)
+  // handles[i] — разделитель между panel[i] и panel[i+1]
+  const handles = Array.from(ws.querySelectorAll('.resize-handle'));
+
+  let sizes = [240, null, null, null];
   let visible = [true, true, true, true];
 
   function buildGrid() {
+    // Фиксированная структура 7 колонок: p0|h0|p1|h1|p2|h2|p3
+    // Скрытые = 0px, не трогаем gridColumn вообще
+    const cols = [];
 
-  const handles = ws.querySelectorAll('.resize-handle');
-  handles.forEach(h => h.style.display = 'none');
+    for (let i = 0; i < 4; i++) {
+      const v = visible[i];
 
-  const visibleIndexes = [];
-  for (let i = 0; i < 4; i++) {
-    if (visible[i]) visibleIndexes.push(i);
-  }
+      // колонка панели
+      cols.push(v ? (sizes[i] ? sizes[i] + 'px' : '1fr') : '0px');
 
-  // если ни одной панели
-  if (visibleIndexes.length === 0) {
-    ws.style.gridTemplateColumns = '1fr';
-    return;
-  }
-
-  // если одна панель — растянуть
-  if (visibleIndexes.length === 1) {
-    ws.style.gridTemplateColumns = '1fr';
-
-    panels.forEach(p => p.style.gridColumn = '');
-    panels[visibleIndexes[0]].style.gridColumn = '1';
-
-    return;
-  }
-
-  const cols = [];
-  let colIndex = 1;
-
-  // Сбрасываем gridColumn у всех панелей и хэндлов — чтобы скрытые не занимали место
-  panels.forEach(p => p.style.gridColumn = 'unset');
-  handles.forEach(h => h.style.gridColumn = 'unset');
-
-  visibleIndexes.forEach((panelIndex, idx) => {
-
-    // ширина
-    cols.push(sizes[panelIndex] ? sizes[panelIndex] + 'px' : '1fr');
-
-    // назначаем явную колонку панели
-    panels[panelIndex].style.gridColumn = colIndex;
-    colIndex++;
-
-    // если не последняя — добавляем handle
-    if (idx < visibleIndexes.length - 1) {
-
-      // ищем handle по data-index, а не по позиции в NodeList
-      const handle = ws.querySelector('.resize-handle[data-index="' + panelIndex + '"]');
-      if (handle) {
-        handle.style.display = 'block';
-        handle.style.gridColumn = colIndex;
+      // колонка handle между i и i+1
+      if (i < 3) {
+        const hv = visible[i] && visible[i + 1];
+        cols.push(hv ? '6px' : '0px');
+        handles[i].style.display = hv ? 'block' : 'none';
       }
 
-      cols.push('6px');
-      colIndex++;
+      // панель: overflow скрывает содержимое при 0px
+      panels[i].style.overflow = v ? '' : 'hidden';
+      panels[i].style.minWidth = '0';
     }
-  });
 
-  ws.style.gridTemplateColumns = cols.join(' ');
-}
+    ws.style.gridTemplateColumns = cols.join(' ');
+  }
 
   buildGrid();
 
@@ -2210,8 +2179,7 @@ function toggleTheme() {
   if (index < 1 || index > 4) return;
   const i = index - 1;
   visible[i] = !visible[i];
-  panels[i].style.display = visible[i] ? 'flex' : 'none';
-  // ─── Обновляем цвет кнопки ───
+  // Видимость управляется через buildGrid (0px в grid), display не трогаем
   const btn = document.querySelector(
     '.panel-toggle-btn[data-panel="' + index + '"]'
   );
