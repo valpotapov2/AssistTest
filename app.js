@@ -4,18 +4,19 @@
 const accountManager = (function() {
   const LS_KEY = 'api_test_user_accounts';
 
-  // TESTER — фиксированный аккаунт тестировщика (всегда один)
-  // USER   — список тестируемых пользователей, один активный
   let tester  = { login: '', password: '', name: 'Tester' };
   let users   = [];
   let currentUserId = null;
   let open = false;
 
+  // Снимки данных в момент открытия/выбора — для определения dirty state
+  let snapUser   = null;  // { name, login, password, active }
+  let snapTester = null;  // { name, login, password }
+
   function persist() {
     localStorage.setItem(LS_KEY, JSON.stringify({ tester, users }));
   }
 
-  // Применяем активного USER в поля cfgLogin/cfgPassword (используется при запуске тестов)
   function applyActiveUser() {
     const u = users.find(a => a.active) || users[0];
     if (!u) return;
@@ -32,10 +33,56 @@ const accountManager = (function() {
     if (!list) return;
     list.innerHTML = users.map(u => `
       <div class="acc-list-item${u.id === currentUserId ? ' selected' : ''}"
-           onclick="accountManager.selectUser('${u.id}')">
+           onclick="event.stopPropagation();accountManager.selectUser('${u.id}')">
         <span class="acc-list-name">${u.name || u.login || '—'}</span>
         ${u.active ? '<span class="acc-active-dot" title="Активный">●</span>' : ''}
       </div>`).join('');
+  }
+
+  function snapshotUser(u) {
+    return u ? { name: u.name, login: u.login, password: u.password, active: !!u.active } : null;
+  }
+
+  function snapshotTester() {
+    return { name: tester.name, login: tester.login, password: tester.password };
+  }
+
+  function readUserFields() {
+    return {
+      name:     document.getElementById('accName').value.trim(),
+      login:    document.getElementById('accLogin').value.trim(),
+      password: document.getElementById('accPass').value,
+      active:   document.getElementById('accActive').checked,
+    };
+  }
+
+  function readTesterFields() {
+    return {
+      name:     document.getElementById('testerName').value.trim(),
+      login:    document.getElementById('testerLogin').value.trim(),
+      password: document.getElementById('testerPass').value,
+    };
+  }
+
+  function isDirtyUser() {
+    if (!snapUser) return false;
+    const f = readUserFields();
+    return f.name !== snapUser.name || f.login !== snapUser.login ||
+           f.password !== snapUser.password || f.active !== snapUser.active;
+  }
+
+  function isDirtyTester() {
+    if (!snapTester) return false;
+    const f = readTesterFields();
+    return f.name !== snapTester.name || f.login !== snapTester.login ||
+           f.password !== snapTester.password;
+  }
+
+  function syncSaveButtons() {
+    const btnUser   = document.getElementById('btnSaveUser');
+    const btnTester = document.getElementById('btnSaveTester');
+    if (btnUser)   btnUser.disabled   = !isDirtyUser();
+    if (btnTester) btnTester.disabled = !isDirtyTester();
   }
 
   function fillUserEditor(u) {
@@ -43,12 +90,26 @@ const accountManager = (function() {
     document.getElementById('accLogin').value    = u ? u.login    : '';
     document.getElementById('accPass').value     = u ? u.password : '';
     document.getElementById('accActive').checked = u ? !!u.active : false;
+    snapUser = snapshotUser(u);
+    syncSaveButtons();
   }
 
   function fillTesterEditor() {
     document.getElementById('testerName').value  = tester.name  || '';
     document.getElementById('testerLogin').value = tester.login || '';
     document.getElementById('testerPass').value  = tester.password || '';
+    snapTester = snapshotTester();
+    syncSaveButtons();
+  }
+
+  // Вешаем input-listeners на поля dropdown — один раз после DOMContentLoaded
+  function bindChangeListeners() {
+    ['accName','accLogin','accPass','accActive',
+     'testerName','testerLogin','testerPass'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input',  syncSaveButtons);
+      if (el) el.addEventListener('change', syncSaveButtons);
+    });
   }
 
   return {
@@ -62,7 +123,6 @@ const accountManager = (function() {
         }
       } catch(e) {}
 
-      // Инициализация из текущих полей если users пустой
       if (users.length === 0) {
         const login    = document.getElementById('cfgLogin').value || '';
         const password = document.getElementById('cfgPassword').value || '';
@@ -74,6 +134,7 @@ const accountManager = (function() {
       currentUserId = (users.find(a => a.active) || users[0]).id;
 
       applyActiveUser();
+      bindChangeListeners();
 
       // Закрывать при клике вне dropdown
       document.addEventListener('click', e => {
@@ -107,10 +168,9 @@ const accountManager = (function() {
       currentUserId = id;
       const u = getById(id);
       if (!u) return;
-      document.getElementById('cfgLogin').value    = u.login;
-      document.getElementById('cfgPassword').value = u.password;
       renderList();
       fillUserEditor(u);
+      // НЕ меняем cfgLogin/cfgPassword — только при Save с ACTIVE
     },
 
     saveUser() {
@@ -129,6 +189,8 @@ const accountManager = (function() {
       persist();
       applyActiveUser();
       renderList();
+      snapUser = snapshotUser(u);
+      syncSaveButtons();
       toast('User сохранён', 'success');
     },
 
@@ -137,6 +199,8 @@ const accountManager = (function() {
       tester.login    = document.getElementById('testerLogin').value.trim();
       tester.password = document.getElementById('testerPass').value;
       persist();
+      snapTester = snapshotTester();
+      syncSaveButtons();
       toast('Tester сохранён', 'success');
     },
 
@@ -162,7 +226,6 @@ const accountManager = (function() {
       fillUserEditor(users[0]);
     },
 
-    // Для получения tester извне (если нужно)
     getTester() { return { ...tester }; },
 
     // legacy
