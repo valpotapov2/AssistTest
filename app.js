@@ -6,33 +6,6 @@ const accountManager = (function() {
   let accounts = [];
   let currentId = null;
 
-  function load() {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        accounts = JSON.parse(raw).accounts || [];
-      }
-    } catch(e) { accounts = []; }
-
-    // Инициализация из текущих полей если список пуст
-    if (accounts.length === 0) {
-      const login    = document.getElementById('cfgLogin').getAttribute('value') || '';
-      const password = document.getElementById('cfgPassword').getAttribute('value') || '';
-      accounts = [{
-        id: Date.now().toString(),
-        name: login || 'Default',
-        login,
-        password,
-        active: true
-      }];
-      persist();
-    }
-
-    // Применяем активную учётку в поля
-    applyActive();
-    renderSelect();
-  }
-
   function persist() {
     localStorage.setItem(LS_KEY, JSON.stringify({ accounts }));
   }
@@ -47,26 +20,51 @@ const accountManager = (function() {
   function renderSelect() {
     const sel = document.getElementById('accountSelect');
     if (!sel) return;
-    const active = accounts.find(a => a.active);
+    const active = accounts.find(a => a.active) || accounts[0];
     sel.innerHTML = accounts.map(a =>
-      `<option value="${a.id}" ${a.id === (active && active.id) ? 'selected' : ''}>${a.name || a.login || '—'}</option>`
+      `<option value="${a.id}"${a.id === (active && active.id) ? ' selected' : ''}>${a.name || a.login || '—'}</option>`
     ).join('');
-    currentId = active ? active.id : (accounts[0] ? accounts[0].id : null);
+    if (active) currentId = active.id;
+  }
+
+  function fillModal(acc) {
+    document.getElementById('accName').value     = acc ? acc.name     : '';
+    document.getElementById('accLogin').value    = acc ? acc.login    : '';
+    document.getElementById('accPass').value     = acc ? acc.password : '';
+    document.getElementById('accActive').checked = acc ? !!acc.active : false;
   }
 
   function getById(id) {
     return accounts.find(a => a.id === id);
   }
 
-  function fillModal(acc) {
-    document.getElementById('accName').value    = acc ? acc.name     : '';
-    document.getElementById('accLogin').value   = acc ? acc.login    : '';
-    document.getElementById('accPass').value    = acc ? acc.password : '';
-    document.getElementById('accActive').checked = acc ? !!acc.active : false;
-  }
-
   return {
-    init() { load(); },
+    init() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) accounts = JSON.parse(raw).accounts || [];
+      } catch(e) { accounts = []; }
+
+      // Инициализация из текущих полей если список пуст
+      if (accounts.length === 0) {
+        const login    = document.getElementById('cfgLogin').value || '';
+        const password = document.getElementById('cfgPassword').value || '';
+        accounts = [{
+          id: Date.now().toString(),
+          name: login || 'Default',
+          login,
+          password,
+          active: true
+        }];
+        persist();
+      }
+
+      // Гарантируем что хоть одна активна
+      if (!accounts.find(a => a.active)) accounts[0].active = true;
+
+      applyActive();
+      renderSelect();
+    },
 
     select(id) {
       currentId = id;
@@ -77,14 +75,12 @@ const accountManager = (function() {
     },
 
     openPanel() {
+      const sel = document.getElementById('accountSelect');
+      if (sel && sel.value) currentId = sel.value;
       const acc = getById(currentId) || accounts[0];
       if (acc) currentId = acc.id;
       fillModal(acc);
       document.getElementById('accountModal').classList.add('open');
-    },
-
-    onActiveChange(cb) {
-      // предпросмотр — реально применится при Save
     },
 
     save() {
@@ -99,10 +95,7 @@ const accountManager = (function() {
         acc.active = true;
       } else {
         acc.active = false;
-        // Если ни одна не активна — активируем первую
-        if (!accounts.find(a => a.active) && accounts.length > 0) {
-          accounts[0].active = true;
-        }
+        if (!accounts.find(a => a.active) && accounts.length > 0) accounts[0].active = true;
       }
       persist();
       applyActive();
@@ -114,10 +107,7 @@ const accountManager = (function() {
     newAcc() {
       const acc = {
         id: Date.now().toString(),
-        name: '',
-        login: '',
-        password: '',
-        active: false
+        name: '', login: '', password: '', active: false
       };
       accounts.push(acc);
       currentId = acc.id;
@@ -128,15 +118,14 @@ const accountManager = (function() {
 
     deleteAcc() {
       if (accounts.length <= 1) { toast('Нельзя удалить последнюю запись', 'warn'); return; }
-      const wasActive = getById(currentId)?.active;
+      const wasActive = !!getById(currentId)?.active;
       accounts = accounts.filter(a => a.id !== currentId);
-      if (wasActive && accounts.length > 0) accounts[0].active = true;
+      if (wasActive) accounts[0].active = true;
       persist();
       applyActive();
       renderSelect();
-      const first = accounts[0];
-      currentId = first ? first.id : null;
-      fillModal(first || null);
+      currentId = accounts[0].id;
+      fillModal(accounts[0]);
     }
   };
 })();
