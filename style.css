@@ -927,12 +927,7 @@ body {
 }
 
 /* ── ACCOUNT PICKER ── */
-.account-picker {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.account-btn {
-  padding: 0 6px;
-  font-size: 12px;
+#accountSelect {
+  width: 130px;
+  cursor: pointer;
 }

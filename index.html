@@ -22,12 +22,10 @@
   <span style="color:var(--text3);font-size:10px;">BASE URL</span>
   <input class="cfg-field" id="cfgBaseUrl" placeholder="https://geoblinker.ru/taxi/c/Assist/api/v1" value="https://geoblinker.ru/taxi/c/Assist/api/v1">
   <div class="topbar-sep"></div>
-  <input class="cfg-field" id="cfgLogin" style="display:none" placeholder="login">
-  <input class="cfg-field" id="cfgPassword" style="display:none" type="password" placeholder="pass">
-  <div class="account-picker">
-    <select class="cfg-field account-select" id="accountSelect" onchange="accountManager.select(this.value)" style="width:120px"></select>
-    <button class="btn small account-btn" onclick="accountManager.openPanel()" title="Управление учётными записями">⚙</button>
-  </div>
+  <input class="cfg-field" id="cfgLogin" value="doctor@doctor.ru" style="display:none" placeholder="login">
+  <input class="cfg-field" id="cfgPassword" value="093588059" type="password" style="display:none" placeholder="pass">
+  <select class="cfg-field" id="accountSelect" onchange="accountManager.select(this.value)" style="width:130px" title="Учётная запись"></select>
+  <button class="btn small" onclick="accountManager.openPanel()" title="Управление учётными записями">⚙</button>
   <div class="topbar-sep"></div>
   <button class="btn small" onclick="login()">Войти</button>
   <button class="btn small" onclick="logout()">Выйти</button>
@@ -206,7 +204,7 @@
     </div>
     <div class="field-group" style="flex-direction:row;align-items:center;gap:8px">
       <div class="field-label" style="margin:0">ACTIVE</div>
-      <input type="checkbox" id="accActive" onchange="accountManager.onActiveChange(this)">
+      <input type="checkbox" id="accActive">
     </div>
     <div class="modal-actions">
       <button class="btn small" onclick="accountManager.newAcc()">＋ New</button>
