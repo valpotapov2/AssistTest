@@ -44,30 +44,60 @@
 
 <!-- ACCOUNT DROPDOWN -->
 <div class="acc-dropdown" id="accDropdown" style="display:none">
-  <div class="acc-list" id="accList"></div>
-  <div class="acc-editor">
+
+  <!-- TESTER: фиксированный аккаунт тестировщика -->
+  <div class="acc-section">
+    <div class="acc-section-title">TESTER</div>
     <div class="acc-editor-row">
       <span class="acc-editor-label">NAME</span>
-      <input class="input" id="accName" placeholder="Doctor">
+      <input class="input" id="testerName" placeholder="Tester">
     </div>
     <div class="acc-editor-row">
       <span class="acc-editor-label">LOGIN</span>
-      <input class="input" id="accLogin" placeholder="doctor@clinic.ru">
+      <input class="input" id="testerLogin" placeholder="admin@clinic.ru">
     </div>
     <div class="acc-editor-row">
       <span class="acc-editor-label">PASS</span>
-      <input class="input" id="accPass" type="password" placeholder="••••••••">
-    </div>
-    <div class="acc-editor-row">
-      <span class="acc-editor-label">ACTIVE</span>
-      <input type="checkbox" id="accActive">
+      <input class="input" id="testerPass" type="password" placeholder="••••••••">
     </div>
     <div class="acc-editor-actions">
-      <button class="btn small" onclick="accountManager.newAcc()">+ New</button>
-      <button class="btn small danger" onclick="accountManager.deleteAcc()">Delete</button>
-      <button class="btn small primary" onclick="accountManager.save()">Save</button>
+      <button class="btn small primary" onclick="accountManager.saveTester()">Save</button>
     </div>
   </div>
+
+  <div class="acc-divider"></div>
+
+  <!-- USER: список тестируемых пользователей -->
+  <div class="acc-section">
+    <div class="acc-section-title">USER <span style="font-size:9px;color:var(--text3)">(используется при запуске тестов)</span></div>
+    <div class="acc-user-layout">
+      <div class="acc-list" id="accList"></div>
+      <div class="acc-editor">
+        <div class="acc-editor-row">
+          <span class="acc-editor-label">NAME</span>
+          <input class="input" id="accName" placeholder="Doctor">
+        </div>
+        <div class="acc-editor-row">
+          <span class="acc-editor-label">LOGIN</span>
+          <input class="input" id="accLogin" placeholder="doctor@clinic.ru">
+        </div>
+        <div class="acc-editor-row">
+          <span class="acc-editor-label">PASS</span>
+          <input class="input" id="accPass" type="password" placeholder="••••••••">
+        </div>
+        <div class="acc-editor-row">
+          <span class="acc-editor-label">ACTIVE</span>
+          <input type="checkbox" id="accActive">
+        </div>
+        <div class="acc-editor-actions">
+          <button class="btn small" onclick="accountManager.newUser()">+ New</button>
+          <button class="btn small danger" onclick="accountManager.deleteUser()">Delete</button>
+          <button class="btn small primary" onclick="accountManager.saveUser()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <button class="acc-close" onclick="accountManager.closeDropdown()" title="Закрыть">✕</button>
 </div>
 <!-- WORKSPACE -->
