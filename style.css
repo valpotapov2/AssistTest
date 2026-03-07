@@ -925,3 +925,14 @@ body {
   min-width: 0 !important;
   overflow: hidden !important;
 }
+
+/* ── ACCOUNT PICKER ── */
+.account-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.account-btn {
+  padding: 0 6px;
+  font-size: 12px;
+}
