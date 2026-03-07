@@ -1,4 +1,147 @@
 // ════════════════════════════════════════════════════════════
+//  ACCOUNT MANAGER
+// ════════════════════════════════════════════════════════════
+const accountManager = (function() {
+  const LS_KEY = 'api_test_user_accounts';
+  let accounts = [];
+  let currentId = null;
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        accounts = JSON.parse(raw).accounts || [];
+      }
+    } catch(e) { accounts = []; }
+
+    // Инициализация из текущих полей если список пуст
+    if (accounts.length === 0) {
+      const login    = document.getElementById('cfgLogin').getAttribute('value') || '';
+      const password = document.getElementById('cfgPassword').getAttribute('value') || '';
+      accounts = [{
+        id: Date.now().toString(),
+        name: login || 'Default',
+        login,
+        password,
+        active: true
+      }];
+      persist();
+    }
+
+    // Применяем активную учётку в поля
+    applyActive();
+    renderSelect();
+  }
+
+  function persist() {
+    localStorage.setItem(LS_KEY, JSON.stringify({ accounts }));
+  }
+
+  function applyActive() {
+    const acc = accounts.find(a => a.active) || accounts[0];
+    if (!acc) return;
+    document.getElementById('cfgLogin').value    = acc.login;
+    document.getElementById('cfgPassword').value = acc.password;
+  }
+
+  function renderSelect() {
+    const sel = document.getElementById('accountSelect');
+    if (!sel) return;
+    const active = accounts.find(a => a.active);
+    sel.innerHTML = accounts.map(a =>
+      `<option value="${a.id}" ${a.id === (active && active.id) ? 'selected' : ''}>${a.name || a.login || '—'}</option>`
+    ).join('');
+    currentId = active ? active.id : (accounts[0] ? accounts[0].id : null);
+  }
+
+  function getById(id) {
+    return accounts.find(a => a.id === id);
+  }
+
+  function fillModal(acc) {
+    document.getElementById('accName').value    = acc ? acc.name     : '';
+    document.getElementById('accLogin').value   = acc ? acc.login    : '';
+    document.getElementById('accPass').value    = acc ? acc.password : '';
+    document.getElementById('accActive').checked = acc ? !!acc.active : false;
+  }
+
+  return {
+    init() { load(); },
+
+    select(id) {
+      currentId = id;
+      const acc = getById(id);
+      if (!acc) return;
+      document.getElementById('cfgLogin').value    = acc.login;
+      document.getElementById('cfgPassword').value = acc.password;
+    },
+
+    openPanel() {
+      const acc = getById(currentId) || accounts[0];
+      if (acc) currentId = acc.id;
+      fillModal(acc);
+      document.getElementById('accountModal').classList.add('open');
+    },
+
+    onActiveChange(cb) {
+      // предпросмотр — реально применится при Save
+    },
+
+    save() {
+      const acc = getById(currentId);
+      if (!acc) return;
+      acc.name     = document.getElementById('accName').value.trim();
+      acc.login    = document.getElementById('accLogin').value.trim();
+      acc.password = document.getElementById('accPass').value;
+      const makeActive = document.getElementById('accActive').checked;
+      if (makeActive) {
+        accounts.forEach(a => a.active = false);
+        acc.active = true;
+      } else {
+        acc.active = false;
+        // Если ни одна не активна — активируем первую
+        if (!accounts.find(a => a.active) && accounts.length > 0) {
+          accounts[0].active = true;
+        }
+      }
+      persist();
+      applyActive();
+      renderSelect();
+      closeModal('accountModal');
+      toast('Учётная запись сохранена', 'success');
+    },
+
+    newAcc() {
+      const acc = {
+        id: Date.now().toString(),
+        name: '',
+        login: '',
+        password: '',
+        active: false
+      };
+      accounts.push(acc);
+      currentId = acc.id;
+      persist();
+      renderSelect();
+      fillModal(acc);
+    },
+
+    deleteAcc() {
+      if (accounts.length <= 1) { toast('Нельзя удалить последнюю запись', 'warn'); return; }
+      const wasActive = getById(currentId)?.active;
+      accounts = accounts.filter(a => a.id !== currentId);
+      if (wasActive && accounts.length > 0) accounts[0].active = true;
+      persist();
+      applyActive();
+      renderSelect();
+      const first = accounts[0];
+      currentId = first ? first.id : null;
+      fillModal(first || null);
+    }
+  };
+})();
+
+// ════════════════════════════════════════════════════════════
 //  STATE
 // ════════════════════════════════════════════════════════════
 const S = {
@@ -3053,3 +3196,4 @@ function runTemplateSandbox(templateId, entryId) {
 // ════════════════════════════════════════════════════════════
 // init();  // убрали автологин
 setRunStatus('idle', 'Не авторизован');
+accountManager.init();
