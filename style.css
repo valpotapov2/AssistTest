@@ -162,6 +162,7 @@ body {
   grid-template-rows: 1fr;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 /* ── PANEL BASE ── */
@@ -776,9 +777,6 @@ body {
 .toast.info    { border-color: var(--accent); color: var(--accent2); }
 .toast.warn    { border-color: var(--yellow); color: var(--yellow); }
 /* ───────── RESIZE HANDLES ───────── */
-.workspace {
-  position: relative;
-}
 .resize-handle {
   width: 6px;
   cursor: col-resize;
