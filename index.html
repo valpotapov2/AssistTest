@@ -63,11 +63,12 @@
       <input type="checkbox" id="accActive">
     </div>
     <div class="acc-editor-actions">
-      <button class="btn small" onclick="accountManager.newAcc()">＋ New</button>
-      <button class="btn small danger" onclick="accountManager.deleteAcc()">🗑</button>
-      <button class="btn small primary" onclick="accountManager.save()">💾 Save</button>
+      <button class="btn small" onclick="accountManager.newAcc()">+ New</button>
+      <button class="btn small danger" onclick="accountManager.deleteAcc()">Delete</button>
+      <button class="btn small primary" onclick="accountManager.save()">Save</button>
     </div>
   </div>
+  <button class="acc-close" onclick="accountManager.closeDropdown()" title="Закрыть">✕</button>
 </div>
 <!-- WORKSPACE -->
 <div class="workspace">
