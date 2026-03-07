@@ -2096,46 +2096,73 @@ function toggleTheme() {
 (function(){
 
   const ws = document.querySelector('.workspace');
+  if (!ws) return;
   const panels = Array.from(ws.querySelectorAll('.panel'));
-
   if (panels.length !== 4) return;
 
-  // Вставляем resize handles: panel0, handle0, panel1, handle1, panel2, handle2, panel3
+  // Вставляем handles: panel0, handle0, panel1, handle1, panel2, handle2, panel3
   for (let i = 0; i < 3; i++) {
-    const handle = document.createElement('div');
-    handle.className = 'resize-handle';
-    handle.dataset.index = i;
-    panels[i].after(handle);
+    const h = document.createElement('div');
+    h.className = 'resize-handle';
+    h.dataset.index = i;
+    panels[i].after(h);
   }
+  // handles[i] — между panel[i] и panel[i+1], индексы совпадают с data-index
+  const handles = [
+    ws.querySelector('.resize-handle[data-index="0"]'),
+    ws.querySelector('.resize-handle[data-index="1"]'),
+    ws.querySelector('.resize-handle[data-index="2"]')
+  ];
 
-  // handles[i] — разделитель между panel[i] и panel[i+1]
-  const handles = Array.from(ws.querySelectorAll('.resize-handle'));
-
-  let sizes = [240, null, null, null];
+  let sizes = [240, null, null, null]; // null = 1fr
   let visible = [true, true, true, true];
 
+  // Строим динамический grid только из видимых панелей.
+  // Каждой видимой панели и handle явно назначаем gridColumn.
   function buildGrid() {
-    // Фиксированная структура 7 колонок: p0|h0|p1|h1|p2|h2|p3
-    // Скрытые = 0px, не трогаем gridColumn вообще
-    const cols = [];
+    // Скрываем все handles
+    handles.forEach(h => { if (h) h.style.display = 'none'; });
 
-    for (let i = 0; i < 4; i++) {
-      const v = visible[i];
+    const vis = [0,1,2,3].filter(i => visible[i]);
 
-      // колонка панели
-      cols.push(v ? (sizes[i] ? sizes[i] + 'px' : '1fr') : '0px');
-
-      // колонка handle между i и i+1
-      if (i < 3) {
-        const hv = visible[i] && visible[i + 1];
-        cols.push(hv ? '6px' : '0px');
-        handles[i].style.display = hv ? 'block' : 'none';
-      }
-
-      // панель: overflow скрывает содержимое при 0px
-      panels[i].style.overflow = v ? '' : 'hidden';
-      panels[i].style.minWidth = '0';
+    if (vis.length === 0) {
+      ws.style.gridTemplateColumns = '1fr';
+      panels.forEach(p => { p.style.display = 'none'; });
+      return;
     }
+
+    // Скрываем невидимые панели, показываем видимые
+    panels.forEach((p, i) => {
+      p.style.display = visible[i] ? 'flex' : 'none';
+    });
+
+    // Строим колонки только для видимых: p | h | p | h | ... | p
+    const cols = [];
+    let col = 1;
+
+    vis.forEach((pi, idx) => {
+      const w = sizes[pi];
+      cols.push(w != null ? w + 'px' : '1fr');
+      panels[pi].style.gridColumn = String(col);
+      col++;
+
+      if (idx < vis.length - 1) {
+        // handle между текущей и следующей видимой
+        // ищем handle с data-index = pi (он стоит после panel[pi])
+        const h = handles[pi] || handles[idx];
+        cols.push('6px');
+        if (h) {
+          h.style.display = 'block';
+          h.style.gridColumn = String(col);
+        }
+        col++;
+      }
+    });
+
+    // Невидимым панелям сбрасываем gridColumn чтобы не мешали
+    panels.forEach((p, i) => {
+      if (!visible[i]) p.style.gridColumn = '';
+    });
 
     ws.style.gridTemplateColumns = cols.join(' ');
   }
@@ -2143,51 +2170,46 @@ function toggleTheme() {
   buildGrid();
 
   // --- Resize ---
-  ws.querySelectorAll('.resize-handle').forEach(handle => {
-
+  handles.forEach((handle, hi) => {
+    if (!handle) return;
     handle.addEventListener('mousedown', e => {
-
       const i = Number(handle.dataset.index);
-      const left  = panels[i];
-      const right = panels[i+1];
+      // Ищем ближайшие видимые панели слева (i или левее) и справа (i+1 или правее)
+      let li = i;
+      let ri = i + 1;
+      while (li >= 0 && !visible[li]) li--;
+      while (ri < 4 && !visible[ri]) ri++;
+      if (li < 0 || ri > 3) return;
 
       const startX = e.clientX;
-      const startLeft  = left.offsetWidth;
-      const startRight = right.offsetWidth;
+      const startLeft  = panels[li].offsetWidth;
+      const startRight = panels[ri].offsetWidth;
 
       function move(ev) {
         const dx = ev.clientX - startX;
-        sizes[i]   = startLeft + dx;
-        sizes[i+1] = startRight - dx;
+        sizes[li] = Math.max(60, startLeft + dx);
+        sizes[ri] = Math.max(60, startRight - dx);
         buildGrid();
       }
-
       function up() {
         document.removeEventListener('mousemove', move);
         document.removeEventListener('mouseup', up);
       }
-
       document.addEventListener('mousemove', move);
       document.addEventListener('mouseup', up);
+      e.preventDefault();
     });
-
   });
 
-  // --- Toggle API ---
-  window.togglePanel = function(index){
-
-  if (index < 1 || index > 4) return;
-  const i = index - 1;
-  visible[i] = !visible[i];
-  // Видимость управляется через buildGrid (0px в grid), display не трогаем
-  const btn = document.querySelector(
-    '.panel-toggle-btn[data-panel="' + index + '"]'
-  );
-  if (btn) {
-    btn.classList.toggle('active', visible[i]);
-  }
-  buildGrid();
-};
+  // --- Toggle ---
+  window.togglePanel = function(index) {
+    if (index < 1 || index > 4) return;
+    const i = index - 1;
+    visible[i] = !visible[i];
+    const btn = document.querySelector('.panel-toggle-btn[data-panel="' + index + '"]');
+    if (btn) btn.classList.toggle('active', visible[i]);
+    buildGrid();
+  };
 
 })();
 function renderTemplateDebug() { return ''; } // оставлен для совместимости

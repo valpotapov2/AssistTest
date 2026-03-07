@@ -171,7 +171,6 @@ body {
   flex-direction: column;
   border-right: 1px solid var(--border);
   overflow: hidden;
-  min-width: 0;
 }
 .panel:last-child { border-right: none; }
 
@@ -918,4 +917,11 @@ body {
   100% { background: transparent; }
 }
 
-/* Панели управляются через grid-template-columns (0px = скрыта) */
+/* Скрытые панели не должны занимать место в grid */
+.panel[style*="display: none"],
+.panel[style*="display:none"] {
+  grid-column: unset !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
