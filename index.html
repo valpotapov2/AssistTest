@@ -24,8 +24,9 @@
   <div class="topbar-sep"></div>
   <input class="cfg-field" id="cfgLogin" value="doctor@doctor.ru" style="display:none" placeholder="login">
   <input class="cfg-field" id="cfgPassword" value="093588059" type="password" style="display:none" placeholder="pass">
-  <select class="cfg-field" id="accountSelect" onchange="accountManager.select(this.value)" style="width:130px" title="Учётная запись"></select>
-  <button class="btn small" onclick="accountManager.openPanel()" title="Управление учётными записями">⚙</button>
+  <button class="btn small acc-trigger" id="accTrigger" onclick="accountManager.toggleDropdown()">
+    <span id="accTriggerLabel">—</span> ▾
+  </button>
   <div class="topbar-sep"></div>
   <button class="btn small" onclick="login()">Войти</button>
   <button class="btn small" onclick="logout()">Выйти</button>
@@ -41,6 +42,33 @@
   </div>
 </div>
 
+<!-- ACCOUNT DROPDOWN -->
+<div class="acc-dropdown" id="accDropdown" style="display:none">
+  <div class="acc-list" id="accList"></div>
+  <div class="acc-editor">
+    <div class="acc-editor-row">
+      <span class="acc-editor-label">NAME</span>
+      <input class="input" id="accName" placeholder="Doctor">
+    </div>
+    <div class="acc-editor-row">
+      <span class="acc-editor-label">LOGIN</span>
+      <input class="input" id="accLogin" placeholder="doctor@clinic.ru">
+    </div>
+    <div class="acc-editor-row">
+      <span class="acc-editor-label">PASS</span>
+      <input class="input" id="accPass" type="password" placeholder="••••••••">
+    </div>
+    <div class="acc-editor-row">
+      <span class="acc-editor-label">ACTIVE</span>
+      <input type="checkbox" id="accActive">
+    </div>
+    <div class="acc-editor-actions">
+      <button class="btn small" onclick="accountManager.newAcc()">＋ New</button>
+      <button class="btn small danger" onclick="accountManager.deleteAcc()">🗑</button>
+      <button class="btn small primary" onclick="accountManager.save()">💾 Save</button>
+    </div>
+  </div>
+</div>
 <!-- WORKSPACE -->
 <div class="workspace">
 
@@ -186,33 +214,5 @@
 </div>
 
 
-<!-- MODAL: account manager -->
-<div class="modal-overlay" id="accountModal">
-  <div class="modal" style="width:360px">
-    <div class="modal-title">👤 Учётные записи</div>
-    <div class="field-group">
-      <div class="field-label">NAME</div>
-      <input class="input" id="accName" placeholder="Doctor">
-    </div>
-    <div class="field-group">
-      <div class="field-label">LOGIN</div>
-      <input class="input" id="accLogin" placeholder="doctor@clinic.ru">
-    </div>
-    <div class="field-group">
-      <div class="field-label">PASS</div>
-      <input class="input" id="accPass" type="password" placeholder="••••••••">
-    </div>
-    <div class="field-group" style="flex-direction:row;align-items:center;gap:8px">
-      <div class="field-label" style="margin:0">ACTIVE</div>
-      <input type="checkbox" id="accActive">
-    </div>
-    <div class="modal-actions">
-      <button class="btn small" onclick="accountManager.newAcc()">＋ New</button>
-      <button class="btn small danger" onclick="accountManager.deleteAcc()">🗑 Delete</button>
-      <button class="btn" onclick="closeModal('accountModal')">Отмена</button>
-      <button class="btn primary" onclick="accountManager.save()">💾 Save</button>
-    </div>
-  </div>
-</div>
 <script src="app.js"></script>
 </html>

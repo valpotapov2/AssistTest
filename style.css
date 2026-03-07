@@ -926,8 +926,86 @@ body {
   overflow: hidden !important;
 }
 
-/* ── ACCOUNT PICKER ── */
-#accountSelect {
-  width: 130px;
+/* ── ACCOUNT DROPDOWN ── */
+.acc-trigger {
+  min-width: 120px;
+  text-align: left;
+  justify-content: space-between;
+}
+
+.acc-dropdown {
+  position: absolute;
+  top: 44px;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+.acc-list {
+  width: 180px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: 220px;
+}
+
+.acc-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
   cursor: pointer;
+  font-size: 11px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.acc-list-item:hover { background: var(--bg3); }
+.acc-list-item.selected { background: var(--accent); color: #fff; }
+.acc-list-item.selected .acc-active-dot { color: #fff; }
+
+.acc-list-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-active-dot { font-size: 8px; color: var(--green); margin-left: 6px; flex-shrink: 0; }
+
+.acc-editor {
+  flex: 1;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acc-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.acc-editor-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text3);
+  width: 46px;
+  flex-shrink: 0;
+}
+
+.acc-editor-row .input {
+  flex: 1;
+  height: 26px;
+  font-size: 11px;
+  padding: 0 8px;
+}
+
+.acc-editor-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
 }
