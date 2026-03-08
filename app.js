@@ -1339,6 +1339,12 @@ async function runNext() {
   const kase = R.queue[R.index];
   R.index++;
 
+  // защита от undefined
+  if (!kase) {
+    console.error("runNext: kase is undefined", R.index, R.queue);
+    return;
+  }
+ 
   // ── Проверка depends_on ──────────────────────────────────
   // Правило: blocked если depends_on > 0 И родитель не выполнен успешно
   const depId = kase.depends_on || 0;
@@ -1662,7 +1668,7 @@ async function executeCase(kase) {
 
     // Build form body
     // Если выполняется шаг авторизации — не использовать login tester-а
-    if (url === '/auth') {
+    if (kase.url === '/auth') {
      delete S.state.login;
      delete S.state.password;
     }
