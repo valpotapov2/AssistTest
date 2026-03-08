@@ -120,17 +120,13 @@ const accountManager = (function() {
           const d = JSON.parse(raw);
           tester = d.tester || tester;
           users  = d.users  || [];
-          // Миграция: если user содержит doctor@doctor.ru (старые данные tester) — сбросить
-          if (users.length === 1 && users[0].login === 'doctor@doctor.ru' && !tester.login) {
-            tester = { name: 'Tester', login: 'doctor@doctor.ru', password: users[0].password };
-            users  = [];
-          }
         }
       } catch(e) {}
 
       if (users.length === 0) {
-        // Создаём пустого USER-заглушку — пользователь заполнит через dropdown
-        users = [{ id: Date.now().toString(), name: 'User1', login: '', password: '', active: true }];
+        const login    = document.getElementById('cfgLogin').value || '';
+        const password = document.getElementById('cfgPassword').value || '';
+        users = [{ id: Date.now().toString(), name: login || 'User', login, password, active: true }];
         persist();
       }
 
@@ -232,6 +228,20 @@ const accountManager = (function() {
 
     getTester() { return { ...tester }; },
 
+    resetAll() {
+      if (!confirm('Сбросить все данные аккаунтов? Потребуется заново заполнить TESTER и USER.')) return;
+      localStorage.removeItem(LS_KEY);
+      tester = { login: '', password: '', name: 'Tester' };
+      users  = [{ id: Date.now().toString(), name: 'User1', login: '', password: '', active: true }];
+      currentUserId = users[0].id;
+      persist();
+      applyActiveUser();
+      renderList();
+      fillUserEditor(users[0]);
+      fillTesterEditor();
+      toast('Данные сброшены. Заполните TESTER и USER.', 'warn');
+    },
+
     // legacy
     select(id)  { this.selectUser(id); },
     save()      { this.saveUser(); },
@@ -293,11 +303,12 @@ async function login() {
   try {
     // Для авторизации используем TESTER (фиксированный аккаунт)
     const testerCfg = accountManager.getTester();
-    const login    = testerCfg.login    || cfg().login;
-    const password = testerCfg.password || cfg().password;
+    const login    = testerCfg.login;
+    const password = testerCfg.password;
 
     if (!login || !password) {
-      throw new Error('Введите логин и пароль TESTER');
+      accountManager.openDropdown();
+      throw new Error('Заполните данные TESTER в панели аккаунтов');
     }
 
     // Шаг 1 — auth
