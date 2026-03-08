@@ -120,13 +120,17 @@ const accountManager = (function() {
           const d = JSON.parse(raw);
           tester = d.tester || tester;
           users  = d.users  || [];
+          // Миграция: если user содержит doctor@doctor.ru (старые данные tester) — сбросить
+          if (users.length === 1 && users[0].login === 'doctor@doctor.ru' && !tester.login) {
+            tester = { name: 'Tester', login: 'doctor@doctor.ru', password: users[0].password };
+            users  = [];
+          }
         }
       } catch(e) {}
 
       if (users.length === 0) {
-        const login    = document.getElementById('cfgLogin').value || '';
-        const password = document.getElementById('cfgPassword').value || '';
-        users = [{ id: Date.now().toString(), name: login || 'User', login, password, active: true }];
+        // Создаём пустого USER-заглушку — пользователь заполнит через dropdown
+        users = [{ id: Date.now().toString(), name: 'User1', login: '', password: '', active: true }];
         persist();
       }
 
