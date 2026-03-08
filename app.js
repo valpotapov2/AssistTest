@@ -332,8 +332,9 @@ async function login() {
     }
 
     // ВАЖНО: структура backend
-    S.state.token  = d2.data.token;
-    S.state.u_hash = d2.data.u_hash;
+    S.run = S.run || {};
+    S.run.token  = d2.data.token;
+    S.run.u_hash = d2.data.u_hash;
     S.state.u_id   = d2.auth_user?.u_id || null;
 
     setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
@@ -1268,10 +1269,10 @@ async function startRun(mode) {
   };
 
   // Сохраняем токен между запусками, сбрасываем только контекстные переменные
-  if (!S.state.token) {
-  await login();
-  if (!S.state.token) return;
-}
+  if (!S.run?.token) {
+    await login();
+    if (!S.run?.token) return;
+  }
 
   setRunStatus('running', 'Запуск...');
   updateProgress();
@@ -1712,10 +1713,6 @@ async function executeCase(kase) {
 
     const cleanUrl = (url || '').replace(/^\/|\/$/g, '');
 
-if (cleanUrl === 'auth') {
-  S.state.token = null;
-  S.state.u_hash = null;
-}
     if (method === 'GET') {
 
   const qs = new URLSearchParams(rawParams).toString();
@@ -1727,13 +1724,13 @@ if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
 
   const authParams = {};
 
-  if (S.state.token) authParams.token = S.state.token;
-  if (S.state.u_hash) authParams.u_hash = S.state.u_hash;
-
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
-    authParams.u_a_role = String(kase.u_a_role);
+  if (S.run?.token) authParams.token = S.run.token;
+  if (S.run?.u_hash) authParams.u_hash = S.run.u_hash;
+  
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== '') {
+     authParams.u_a_role = String(kase.u_a_role);
   }
-
+  
   const authQs = new URLSearchParams(authParams).toString();
   if (authQs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
 }
