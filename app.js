@@ -354,11 +354,38 @@ async function login() {
 // LOGOUT
 // ─────────────────────────────
 function logout() {
-  S.state = {};
+
+  // сброс авторизации
+  if (S.state) {
+    S.state.token = null;
+    S.state.u_hash = null;
+  }
+
+  // очистка загруженных данных
   S.suites = [];
-  S.cases  = [];
+  S.cases = [];
+
+  // сброс результатов раннера
+  S.run = {
+    active: false,
+    mode: null,
+    queue: [],
+    index: 0,
+    results: [],
+    passed: 0,
+    failed: 0,
+    startedAt: null,
+    runId: null,
+    failureRoot: null,
+    failedIds: new Set(),
+  };
+
+  // перерисовать дерево кейсов
   renderTree();
+
+  // статус
   setRunStatus('idle', 'Не авторизован');
+
   toast('Вы вышли', 'info');
 }
 
