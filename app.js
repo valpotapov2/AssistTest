@@ -425,7 +425,12 @@ async function apiPost(url, bodyObj) {
 // Версия без .json() — возвращает raw Response для text()-чтения
 async function apiPostRaw(url, bodyObj) {
   const { baseUrl } = cfg();
-  const body = new URLSearchParams(bodyObj);
+  const body = new URLSearchParams();
+
+Object.entries(bodyObj).forEach(([k, v]) => {
+    if (url === '/auth' && (k === 'token' || k === 'u_hash')) return;
+    body.set(k, v);
+});
   return fetch(baseUrl + url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
