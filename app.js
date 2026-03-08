@@ -1269,10 +1269,12 @@ async function startRun(mode) {
   };
 
   // Сохраняем токен между запусками, сбрасываем только контекстные переменные
-  if (!S.run?.token) {
-    await login();
-    if (!S.run?.token) return;
-  }
+  const firstUrl = (cases[0]?.url || '').replace(/^\/|\/$/g, '');
+
+if (firstUrl !== 'auth' && !S.run?.token) {
+  await login();
+  if (!S.run?.token) return;
+}
 
   setRunStatus('running', 'Запуск...');
   updateProgress();
