@@ -1661,6 +1661,11 @@ async function executeCase(kase) {
     const baseUrl = cfg().baseUrl;
 
     // Build form body
+    // Если выполняется шаг авторизации — не использовать login tester-а
+    if (url === '/auth') {
+     delete S.state.login;
+     delete S.state.password;
+    }
     const rawParams = tryParse(resolveVars(kase.params || '{}', S.state), {});
     const body = buildFormBody(rawParams, kase, S.state);
 
