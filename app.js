@@ -343,7 +343,8 @@ async function login() {
     toast('Авторизация успешна', 'success');
 
   } catch (e) {
-    S.state = {};
+    S.state.token = null;
+    S.state.u_hash = null;
     setRunStatus('fail', 'Ошибка авторизации');
     toast(e.message, 'error');
   }
@@ -442,7 +443,9 @@ Object.entries(bodyObj).forEach(([k, v]) => {
 }
 
 async function apiGet(url, params = {}) {
-  const { baseUrl, token, u_hash } = cfg();
+  const { baseUrl } = cfg();
+  const token  = S.run?.token  || S.state?.token  || '';
+  const u_hash = S.run?.u_hash || S.state?.u_hash || '';
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
     headers: { 'Accept': 'application/json' },
@@ -1932,7 +1935,7 @@ function buildFormBody(params, kase, state) {
   const body = new URLSearchParams();
 
   // auth
-const cleanUrl = kase.url.replace(/^\/|\/$/g, '');
+const cleanUrl = (kase.url || '').replace(/^\/|\/$/g, '');
 
 if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
     if (state.token) body.set('token', state.token);
