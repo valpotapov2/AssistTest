@@ -1932,11 +1932,11 @@ function buildFormBody(params, kase, state) {
   // auth
 const cleanUrl = kase.url.replace(/^\/|\/$/g, '');
 
-if (cleanUrl !== 'auth') {
+if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
     if (state.token) body.set('token', state.token);
     if (state.u_hash) body.set('u_hash', state.u_hash);
 } 
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null) body.set('u_a_role', String(kase.u_a_role));
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== '') body.set('u_a_role', String(kase.u_a_role));
 
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || typeof value === 'undefined') return;
