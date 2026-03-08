@@ -1377,7 +1377,7 @@ async function runNext() {
       requestUrl: kase.url, requestBody: {},
       responseBody: null, validationResults: [],
       snapshotAfter: [], stateAfter: { ...S.state },
-      durationMs: 0, errorMessage: `Blocked by #${depTraceEntry.case_id}`,
+      durationMs: 0, errorMessage: `Blocked by #${depTraceEntry?.case_id ?? depId}`,
     };
     R.results.push(fakeResult);
     R.failed++;
