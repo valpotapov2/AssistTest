@@ -416,6 +416,7 @@ async function apiPost(url, bodyObj) {
   const body = new URLSearchParams(bodyObj);
   const resp = await fetch(baseUrl + url, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
@@ -428,6 +429,7 @@ async function apiPostRaw(url, bodyObj) {
   const body = new URLSearchParams(bodyObj);
   return fetch(baseUrl + url, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: body.toString(),
   });
