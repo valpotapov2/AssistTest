@@ -1710,16 +1710,33 @@ async function executeCase(kase) {
       },
     };
 
+    const cleanUrl = (url || '').replace(/^\/|\/$/g, '');
+
+if (cleanUrl === 'auth') {
+  S.state.token = null;
+  S.state.u_hash = null;
+}
     if (method === 'GET') {
-      const qs = new URLSearchParams(rawParams).toString();
-      if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
-      // auth params for GET — всегда передаём token, u_hash, u_a_role (включая 0)
-      const authParams = { token: S.state.token||'', u_hash: S.state.u_hash||'' };
-      if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
-        authParams.u_a_role = String(kase.u_a_role);
-      }
-      const authQs = new URLSearchParams(authParams).toString();
-      fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
+
+  const qs = new URLSearchParams(rawParams).toString();
+  if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
+      
+const cleanUrl = (url || '').replace(/^\/|\/$/g, '');
+
+if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
+
+  const authParams = {};
+
+  if (S.state.token) authParams.token = S.state.token;
+  if (S.state.u_hash) authParams.u_hash = S.state.u_hash;
+
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
+    authParams.u_a_role = String(kase.u_a_role);
+  }
+
+  const authQs = new URLSearchParams(authParams).toString();
+  if (authQs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
+}
     } else {
       fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
       fetchOpts.body = body;
