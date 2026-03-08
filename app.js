@@ -335,6 +335,8 @@ async function login() {
     S.run = S.run || {};
     S.run.token  = d2.data.token;
     S.run.u_hash = d2.data.u_hash;
+    S.state.token  = d2.data.token;
+    S.state.u_hash = d2.data.u_hash;
     S.state.u_id   = d2.auth_user?.u_id || null;
 
     setRunStatus('pass', `Авторизован (u_id: ${S.state.u_id ?? '—'})`);
@@ -1271,9 +1273,9 @@ async function startRun(mode) {
   // Сохраняем токен между запусками, сбрасываем только контекстные переменные
   const firstUrl = (cases[0]?.url || '').replace(/^\/|\/$/g, '');
 
-if (firstUrl !== 'auth' && !S.run?.token) {
+if (firstUrl !== 'auth' && !S.state?.token) {
   await login();
-  if (!S.run?.token) return;
+  if (!S.state?.token) return;
 }
 
   setRunStatus('running', 'Запуск...');
@@ -1681,7 +1683,7 @@ async function executeCase(kase) {
      delete S.state.password;
     }
     const rawParams = tryParse(resolveVars(kase.params || '{}', S.state), {});
-    const body = buildFormBody(rawParams, kase, S.state);
+    const body = buildFormBody(rawParams, kase, S.run);
 
     result.requestUrl  = baseUrl + url;
     result.requestBody = rawParams;
