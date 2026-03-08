@@ -287,10 +287,13 @@ async function login() {
   setRunStatus('running', 'Авторизация...');
 
   try {
-    const { login, password } = cfg();
+    // Для авторизации используем TESTER (фиксированный аккаунт)
+    const testerCfg = accountManager.getTester();
+    const login    = testerCfg.login    || cfg().login;
+    const password = testerCfg.password || cfg().password;
 
     if (!login || !password) {
-      throw new Error('Введите логин и пароль');
+      throw new Error('Введите логин и пароль TESTER');
     }
 
     // Шаг 1 — auth
