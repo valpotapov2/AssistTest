@@ -1696,15 +1696,21 @@ async function executeCase(kase) {
     };
 
     if (method === 'GET') {
-      const qs = new URLSearchParams(rawParams).toString();
-      if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
-      // auth params for GET — всегда передаём token, u_hash, u_a_role (включая 0)
-      const authParams = { token: S.state.token||'', u_hash: S.state.u_hash||'' };
-      if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
-        authParams.u_a_role = String(kase.u_a_role);
-      }
-      const authQs = new URLSearchParams(authParams).toString();
-      fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
+const query = {
+    ...rawParams,
+    token: S.state.token || '',
+    u_hash: S.state.u_hash || ''
+  };
+
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
+    query.u_a_role = String(kase.u_a_role);
+  }
+
+  const qs = new URLSearchParams(query).toString();
+
+  if (qs) {
+    fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
+  }  
     } else {
       fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
       fetchOpts.body = body;
