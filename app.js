@@ -332,9 +332,6 @@ async function login() {
     }
 
     // ВАЖНО: структура backend
-    S.run = S.run || {};
-    S.run.token  = d2.data.token;
-    S.run.u_hash = d2.data.u_hash;
     S.state.token  = d2.data.token;
     S.state.u_hash = d2.data.u_hash;
     S.state.u_id   = d2.auth_user?.u_id || null;
@@ -343,8 +340,7 @@ async function login() {
     toast('Авторизация успешна', 'success');
 
   } catch (e) {
-    S.state.token = null;
-    S.state.u_hash = null;
+    S.state = {};
     setRunStatus('fail', 'Ошибка авторизации');
     toast(e.message, 'error');
   }
@@ -354,38 +350,11 @@ async function login() {
 // LOGOUT
 // ─────────────────────────────
 function logout() {
-
-  // сброс авторизации
-  if (S.state) {
-    S.state.token = null;
-    S.state.u_hash = null;
-  }
-
-  // очистка загруженных данных
+  S.state = {};
   S.suites = [];
-  S.cases = [];
-
-  // сброс результатов раннера
-  S.run = {
-    active: false,
-    mode: null,
-    queue: [],
-    index: 0,
-    results: [],
-    passed: 0,
-    failed: 0,
-    startedAt: null,
-    runId: null,
-    failureRoot: null,
-    failedIds: new Set(),
-  };
-
-  // перерисовать дерево кейсов
+  S.cases  = [];
   renderTree();
-
-  // статус
   setRunStatus('idle', 'Не авторизован');
-
   toast('Вы вышли', 'info');
 }
 
@@ -456,12 +425,7 @@ async function apiPost(url, bodyObj) {
 // Версия без .json() — возвращает raw Response для text()-чтения
 async function apiPostRaw(url, bodyObj) {
   const { baseUrl } = cfg();
-  const body = new URLSearchParams();
-
-Object.entries(bodyObj).forEach(([k, v]) => {
-    if (url === '/auth' && (k === 'token' || k === 'u_hash')) return;
-    body.set(k, v);
-});
+  const body = new URLSearchParams(bodyObj);
   return fetch(baseUrl + url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -470,9 +434,7 @@ Object.entries(bodyObj).forEach(([k, v]) => {
 }
 
 async function apiGet(url, params = {}) {
-  const { baseUrl } = cfg();
-  const token  = S.run?.token  || S.state?.token  || '';
-  const u_hash = S.run?.u_hash || S.state?.u_hash || '';
+  const { baseUrl, token, u_hash } = cfg();
   const qs = new URLSearchParams({ token, u_hash, ...params }).toString();
   const resp = await fetch(`${baseUrl}${url}?${qs}`, {
     headers: { 'Accept': 'application/json' },
@@ -1301,11 +1263,9 @@ async function startRun(mode) {
   };
 
   // Сохраняем токен между запусками, сбрасываем только контекстные переменные
-  const firstUrl = (cases[0]?.url || '').replace(/^\/|\/$/g, '');
-
-if (firstUrl !== 'auth' && !S.state?.token) {
+  if (!S.state.token) {
   await login();
-  if (!S.state?.token) return;
+  if (!S.state.token) return;
 }
 
   setRunStatus('running', 'Запуск...');
@@ -1379,12 +1339,6 @@ async function runNext() {
   const kase = R.queue[R.index];
   R.index++;
 
-  // защита от undefined
-  if (!kase) {
-    console.error("runNext: kase is undefined", R.index, R.queue);
-    return;
-  }
- 
   // ── Проверка depends_on ──────────────────────────────────
   // Правило: blocked если depends_on > 0 И родитель не выполнен успешно
   const depId = kase.depends_on || 0;
@@ -1417,7 +1371,7 @@ async function runNext() {
       requestUrl: kase.url, requestBody: {},
       responseBody: null, validationResults: [],
       snapshotAfter: [], stateAfter: { ...S.state },
-      durationMs: 0, errorMessage: `Blocked by #${depTraceEntry?.case_id ?? depId}`,
+      durationMs: 0, errorMessage: `Blocked by #${depTraceEntry.case_id}`,
     };
     R.results.push(fakeResult);
     R.failed++;
@@ -1707,13 +1661,8 @@ async function executeCase(kase) {
     const baseUrl = cfg().baseUrl;
 
     // Build form body
-    // Если выполняется шаг авторизации — не использовать login tester-а
-    if (kase.url === '/auth') {
-     delete S.state.login;
-     delete S.state.password;
-    }
     const rawParams = tryParse(resolveVars(kase.params || '{}', S.state), {});
-    const body = buildFormBody(rawParams, kase, S.run);
+    const body = buildFormBody(rawParams, kase, S.state);
 
     result.requestUrl  = baseUrl + url;
     result.requestBody = rawParams;
@@ -1745,29 +1694,16 @@ async function executeCase(kase) {
       },
     };
 
-    const cleanUrl = (url || '').replace(/^\/|\/$/g, '');
-
     if (method === 'GET') {
-
-  const qs = new URLSearchParams(rawParams).toString();
-  if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
-      
-const cleanUrl = (url || '').replace(/^\/|\/$/g, '');
-
-if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
-
-  const authParams = {};
-
-  if (S.run?.token) authParams.token = S.run.token;
-  if (S.run?.u_hash) authParams.u_hash = S.run.u_hash;
-  
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== '') {
-     authParams.u_a_role = String(kase.u_a_role);
-  }
-  
-  const authQs = new URLSearchParams(authParams).toString();
-  if (authQs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
-}
+      const qs = new URLSearchParams(rawParams).toString();
+      if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
+      // auth params for GET — всегда передаём token, u_hash, u_a_role (включая 0)
+      const authParams = { token: S.state.token||'', u_hash: S.state.u_hash||'' };
+      if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
+        authParams.u_a_role = String(kase.u_a_role);
+      }
+      const authQs = new URLSearchParams(authParams).toString();
+      fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
     } else {
       fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
       fetchOpts.body = body;
@@ -1962,20 +1898,17 @@ function buildFormBody(params, kase, state) {
   const body = new URLSearchParams();
 
   // auth
-const cleanUrl = (kase.url || '').replace(/^\/|\/$/g, '');
+  if (state.token)  body.set('token',  state.token);
+  if (state.u_hash) body.set('u_hash', state.u_hash);
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null) body.set('u_a_role', String(kase.u_a_role));
 
-if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
-    if (state.token) body.set('token', state.token);
-    if (state.u_hash) body.set('u_hash', state.u_hash);
-} 
-  
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || typeof value === 'undefined') return;
     if (!['token','u_hash','u_a_role'].includes(key)) {
       body.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
     }
   });
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== '') body.set('u_a_role', String(kase.u_a_role));
+
   return body.toString();
 }
 
