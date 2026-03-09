@@ -1665,7 +1665,6 @@ async function executeCase(kase) {
     const rawParams = tryParse(resolveVars(kase.params || '{}', S.state), {});
     const body = buildFormBody(rawParams, kase, S.state);
 
-    result.requestUrl  = baseUrl + url;
     result.requestBody = rawParams;
 
     let fetchOpts = { method, headers: { 'Accept': 'application/json' } };
@@ -1723,6 +1722,7 @@ const query = {
       currentDiagnostic.request.url     = fetchUrl;
     }
 
+    result.requestUrl  = fetchUrl;
     const resp = await fetch(fetchUrl, fetchOpts);
     result.httpStatus = resp.status;
 
