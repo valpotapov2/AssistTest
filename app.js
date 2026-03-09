@@ -1793,11 +1793,7 @@ const query = {
       }
       }
     }
-   //   result.durationMs = Date.now() - start;
-   //   result.stateAfter = { ...S.state };
-   //   return result;
-   }
-
+ 
     // Save state — только при успехе
     if (data && kase.state_save) {
       const saveMap = tryParse(kase.state_save, {});
