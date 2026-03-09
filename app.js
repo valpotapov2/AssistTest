@@ -1770,7 +1770,7 @@ const query = {
       if (currentDiagnostic) { currentDiagnostic.status = 'fail'; currentDiagnostic.errorMessage = result.errorMessage; }
 
       // Автоматический debug-повтор с info=1 — только при fail, не влияет на state/snapshot
-      try {
+      if (S.debugMode) try {
         let debugUrl  = fetchUrl;
         let debugOpts = { method, headers: { ...fetchOpts.headers } };
 
@@ -1794,7 +1794,7 @@ const query = {
       } catch(e) {
         // debug-запрос упал — не ломаем основной результат
       }
-
+    }
       result.durationMs = Date.now() - start;
       result.stateAfter = { ...S.state };
       return result;
