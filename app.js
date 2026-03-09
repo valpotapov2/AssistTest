@@ -351,6 +351,7 @@ async function login() {
 // ─────────────────────────────
 function logout() {
   S.state = {};
+  S.run.active = false;
   S.suites = [];
   S.cases  = [];
   renderTree();
@@ -1905,7 +1906,11 @@ function buildFormBody(params, kase, state) {
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || typeof value === 'undefined') return;
     if (!['token','u_hash','u_a_role'].includes(key)) {
-      body.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+      body.set( key,
+  Array.isArray(value) || (value && value.constructor === Object)
+    ? JSON.stringify(value)
+    : String(value)
+);
     }
   });
 
