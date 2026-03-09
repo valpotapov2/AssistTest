@@ -1696,9 +1696,9 @@ async function executeCase(kase) {
 
     if (method === 'GET') {
 const query = {
-    ...rawParams,
     token: S.state.token || '',
-    u_hash: S.state.u_hash || ''
+    u_hash: S.state.u_hash || '',
+      ...rawParams
   };
 
   if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
@@ -1770,10 +1770,9 @@ const query = {
       if (currentDiagnostic) { currentDiagnostic.status = 'fail'; currentDiagnostic.errorMessage = result.errorMessage; }
 
       // Автоматический debug-повтор с info=1 — только при fail, не влияет на state/snapshot
-      if (S.debugMode) try {
+      if (S.debugMode) { try {
         let debugUrl  = fetchUrl;
         let debugOpts = { method, headers: { ...fetchOpts.headers } };
-
         if (method === 'GET') {
           debugUrl += (debugUrl.includes('?') ? '&' : '?') + 'info=1';
         } else {
@@ -1782,17 +1781,16 @@ const query = {
           debugBody.set('info', '1');
           debugOpts.body = debugBody.toString();
         }
-
         const debugResp = await fetch(debugUrl, debugOpts);
         const debugRaw  = await debugResp.text();
         let debugData = null;
         try { debugData = JSON.parse(debugRaw); } catch(e) {}
-
         if (debugData?.info && currentDiagnostic) {
           currentDiagnostic.response.serverInfo = debugData.info;
         }
       } catch(e) {
         // debug-запрос упал — не ломаем основной результат
+      }
       }
     }
       result.durationMs = Date.now() - start;
