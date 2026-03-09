@@ -1898,11 +1898,16 @@ async function executeCase(kase) {
 function buildFormBody(params, kase, state) {
   const body = new URLSearchParams();
 
-  // auth
+const cleanUrl = (kase.url || '').replace(/^\/|\/$/g,'');
+
+if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
   if (state.token)  body.set('token',  state.token);
   if (state.u_hash) body.set('u_hash', state.u_hash);
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null) body.set('u_a_role', String(kase.u_a_role));
+}
 
+if (cleanUrl !== 'auth' && kase.u_a_role !== undefined && kase.u_a_role !== null) {
+  body.set('u_a_role', String(kase.u_a_role));
+}
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || typeof value === 'undefined') return;
     if (!['token','u_hash','u_a_role'].includes(key)) {
