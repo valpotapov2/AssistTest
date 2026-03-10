@@ -938,7 +938,7 @@ function setRole(r) {
   if (!S.editingCase) return;
   S.editingCase.u_a_role = r;
   document.querySelectorAll('.role-opt').forEach((el, i) => {
-    el.classList.toggle('selected', (i===0 && r===0) || (i===1 && r===2));
+    el.classList.toggle('selected', (i===0 && r===4) || (i===1 && r===2));
   });
 }
 
