@@ -1699,9 +1699,9 @@ async function executeCase(kase) {
       if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
       // auth params for GET — всегда передаём token, u_hash, u_a_role (включая 0)
       const authParams = { token: S.state.token||'', u_hash: S.state.u_hash||'' };
-      if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
+      if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== 0 && kase.u_a_role !== 4) {
         authParams.u_a_role = String(kase.u_a_role);
-      }
+      }    
       const authQs = new URLSearchParams(authParams).toString();
       fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
     } else {
@@ -1900,7 +1900,7 @@ function buildFormBody(params, kase, state) {
   // auth
   if (state.token)  body.set('token',  state.token);
   if (state.u_hash) body.set('u_hash', state.u_hash);
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null) body.set('u_a_role', String(kase.u_a_role));
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== 0 && kase.u_a_role !== 4) body.set('u_a_role', String(kase.u_a_role));
 
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || typeof value === 'undefined') return;
@@ -2610,7 +2610,22 @@ async function exportSuiteSnapshot() {
   const suiteSnapshot = S.cases
     .filter(c => c.suite === S.activeSuite.id)
     .sort((a, b) => a.sort - b.sort)
-    .map(c => ({ case_id: c.id, suite: c.suite, sort: c.sort, active: c.active, chain_group: c.group || '', depends_on: c.depends_on || 0, method: c.method, url: c.url }));
+    .map(c => ({
+  case_id:         c.id,
+  suite:           c.suite,
+  sort:            c.sort,
+  active:          c.active,
+  chain_group:     c.group || '',
+  depends_on:      c.depends_on || 0,
+  method:          c.method,
+  url:             c.url,
+  u_a_role:        c.u_a_role ?? 0,
+  params:          c.params || '{}',
+  state_save:      c.state_save || '{}',
+  validations:     c.validations || '[]',
+  snapshot_config: c.snapshot_config || null,
+  tags:            c.tags || '',
+}));
   const exportData = { type: 'suite_snapshot', suite_id: S.activeSuite.id, suite_name: S.activeSuite.name, exported_at: new Date().toISOString(), cases: suiteSnapshot };
   const subject = `AssistTest Suite Snapshot — ${S.activeSuite.name} — ${new Date().toLocaleString()}`;
   const body = JSON.stringify(exportData, null, 2);
