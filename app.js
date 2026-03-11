@@ -351,7 +351,6 @@ async function login() {
 // ─────────────────────────────
 function logout() {
   S.state = {};
-  S.run.active = false;
   S.suites = [];
   S.cases  = [];
   renderTree();
@@ -873,8 +872,8 @@ function renderEditor() {
       <div class="field-group">
         <div class="field-label">Роль (u_a_role)</div>
         <div class="role-toggle">
-          <label class="role-opt ${c.u_a_role==4?'selected':''}" onclick="setRole(4)">
-            <input type="radio" name="role" value="4"> role=4 (Admin)
+          <label class="role-opt ${c.u_a_role==0?'selected':''}" onclick="setRole(0)">
+            <input type="radio" name="role" value="0"> role=4 (Admin)
           </label>
           <label class="role-opt ${c.u_a_role==2?'selected':''}" onclick="setRole(2)">
             <input type="radio" name="role" value="2"> u_a_role=2 (Врач)
@@ -938,7 +937,7 @@ function setRole(r) {
   if (!S.editingCase) return;
   S.editingCase.u_a_role = r;
   document.querySelectorAll('.role-opt').forEach((el, i) => {
-    el.classList.toggle('selected', (i===0 && r===4) || (i===1 && r===2));
+    el.classList.toggle('selected', (i===0 && r===0) || (i===1 && r===2));
   });
 }
 
@@ -1665,6 +1664,7 @@ async function executeCase(kase) {
     const rawParams = tryParse(resolveVars(kase.params || '{}', S.state), {});
     const body = buildFormBody(rawParams, kase, S.state);
 
+    result.requestUrl  = baseUrl + url;
     result.requestBody = rawParams;
 
     let fetchOpts = { method, headers: { 'Accept': 'application/json' } };
@@ -1695,21 +1695,15 @@ async function executeCase(kase) {
     };
 
     if (method === 'GET') {
-const query = {
-    token: S.state.token || '',
-    u_hash: S.state.u_hash || '',
-      ...rawParams
-  };
-
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
-    query.u_a_role = String(kase.u_a_role);
-  }
-
-  const qs = new URLSearchParams(query).toString();
-
-  if (qs) {
-    fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
-  }  
+      const qs = new URLSearchParams(rawParams).toString();
+      if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
+      // auth params for GET — всегда передаём token, u_hash, u_a_role (включая 0)
+      const authParams = { token: S.state.token||'', u_hash: S.state.u_hash||'' };
+      if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
+        authParams.u_a_role = String(kase.u_a_role);
+      }
+      const authQs = new URLSearchParams(authParams).toString();
+      fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
     } else {
       fetchOpts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
       fetchOpts.body = body;
@@ -1722,7 +1716,6 @@ const query = {
       currentDiagnostic.request.url     = fetchUrl;
     }
 
-    result.requestUrl  = fetchUrl;
     const resp = await fetch(fetchUrl, fetchOpts);
     result.httpStatus = resp.status;
 
@@ -1770,9 +1763,10 @@ const query = {
       if (currentDiagnostic) { currentDiagnostic.status = 'fail'; currentDiagnostic.errorMessage = result.errorMessage; }
 
       // Автоматический debug-повтор с info=1 — только при fail, не влияет на state/snapshot
-      if (S.debugMode) { try {
+      try {
         let debugUrl  = fetchUrl;
         let debugOpts = { method, headers: { ...fetchOpts.headers } };
+
         if (method === 'GET') {
           debugUrl += (debugUrl.includes('?') ? '&' : '?') + 'info=1';
         } else {
@@ -1781,19 +1775,24 @@ const query = {
           debugBody.set('info', '1');
           debugOpts.body = debugBody.toString();
         }
+
         const debugResp = await fetch(debugUrl, debugOpts);
         const debugRaw  = await debugResp.text();
         let debugData = null;
         try { debugData = JSON.parse(debugRaw); } catch(e) {}
+
         if (debugData?.info && currentDiagnostic) {
           currentDiagnostic.response.serverInfo = debugData.info;
         }
       } catch(e) {
         // debug-запрос упал — не ломаем основной результат
       }
-      }
+
+      result.durationMs = Date.now() - start;
+      result.stateAfter = { ...S.state };
+      return result;
     }
- 
+
     // Save state — только при успехе
     if (data && kase.state_save) {
       const saveMap = tryParse(kase.state_save, {});
@@ -1898,24 +1897,15 @@ const query = {
 function buildFormBody(params, kase, state) {
   const body = new URLSearchParams();
 
-const cleanUrl = (kase.url || '').replace(/^\/|\/$/g,'');
-
-if (cleanUrl !== 'auth' && cleanUrl !== 'token') {
+  // auth
   if (state.token)  body.set('token',  state.token);
   if (state.u_hash) body.set('u_hash', state.u_hash);
-}
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null) body.set('u_a_role', String(kase.u_a_role));
 
-if (cleanUrl !== 'auth' && kase.u_a_role !== undefined && kase.u_a_role !== null) {
-  body.set('u_a_role', String(kase.u_a_role));
-}
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || typeof value === 'undefined') return;
     if (!['token','u_hash','u_a_role'].includes(key)) {
-      body.set( key,
-  Array.isArray(value) || (value && value.constructor === Object)
-    ? JSON.stringify(value)
-    : String(value)
-);
+      body.set(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
     }
   });
 
