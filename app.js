@@ -872,12 +872,8 @@ function renderEditor() {
       <div class="field-group">
         <div class="field-label">Роль (u_a_role)</div>
         <div class="role-toggle">
-          <label class="role-opt ${c.u_a_role==4?'selected':''}" onclick="setRole(4)">
-  <input type="radio" name="role" value="4"> role=4 (Admin)
-</label>
-<label class="role-opt ${c.u_a_role==2?'selected':''}" onclick="setRole(2)">
-  <input type="radio" name="role" value="2"> u_a_role=2 (Врач)
-</label>
+          <button class="role-opt ${c.u_a_role==4?'selected':''}" onclick="setRole(4)">role=4 (Admin)</button>
+          <button class="role-opt ${c.u_a_role==2?'selected':''}" onclick="setRole(2)">u_a_role=2 (Врач)</button>
         </div>
       </div>
       <div class="field-group">
@@ -982,9 +978,7 @@ function collectEditorValues() {
     snapshot_config: tryParse(document.getElementById('ef-snapshot')?.value, null),
     tags:          document.getElementById('ef-tags')?.value || '',
     sort:          parseInt(document.getElementById('ef-sort')?.value) || 0,
-    u_a_role: document.querySelector('.role-opt.selected input')?.value
-  ? Number(document.querySelector('.role-opt.selected input').value)
-  : 0,
+    u_a_role: S.editingCase?.u_a_role ?? 0,
   };
 }
 
