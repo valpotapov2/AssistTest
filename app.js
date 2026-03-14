@@ -349,7 +349,13 @@ async function login() {
 // ─────────────────────────────
 // LOGOUT
 // ─────────────────────────────
-function logout() {
+async function logout() {
+  if (S.state.token && S.state.u_hash) {
+    try {
+      const { baseUrl } = cfg();
+      await fetch(`${baseUrl}/logout/?token=${encodeURIComponent(S.state.token)}&u_hash=${encodeURIComponent(S.state.u_hash)}`);
+    } catch(e) {}
+  }
   S.state = {};
   S.suites = [];
   S.cases  = [];
@@ -357,7 +363,6 @@ function logout() {
   setRunStatus('idle', 'Не авторизован');
   toast('Вы вышли', 'info');
 }
-
 // ─────────────────────────────
 // LOAD SUITES
 // ─────────────────────────────
