@@ -298,8 +298,9 @@ const S = {
 // LOGIN
 // ─────────────────────────────
 async function login() {
+  S.trace = [];
+  renderResults();
   setRunStatus('running', 'Авторизация...');
-
   try {
     // Для авторизации используем TESTER (фиксированный аккаунт)
     const testerCfg = accountManager.getTester();
