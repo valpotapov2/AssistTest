@@ -1900,8 +1900,10 @@ function buildFormBody(params, kase, state) {
 
   // auth — не передаём token/u_hash для эндпоинтов авторизации
   const skipAuth = ['/auth', '/auth/', '/token', '/register'].includes(kase.url);
-  if (!skipAuth && state.token)  body.set('token',  state.token);
-  if (!skipAuth && state.u_hash) body.set('u_hash', state.u_hash);
+  const tokenToUse  = params.token  || state.token;
+  const uhashToUse  = params.u_hash || state.u_hash;
+  if (!skipAuth && tokenToUse)  body.set('token',  tokenToUse);
+  if (!skipAuth && uhashToUse)  body.set('u_hash', uhashToUse);
   
   if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== 0 && kase.u_a_role !== 4) body.set('u_a_role', String(kase.u_a_role));
 
