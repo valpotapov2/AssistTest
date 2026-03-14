@@ -1899,7 +1899,7 @@ function buildFormBody(params, kase, state) {
   const body = new URLSearchParams();
 
   // auth — не передаём token/u_hash для эндпоинтов авторизации
-  const skipAuth = ['/auth', '/auth/', '/token'].includes(kase.url);
+  const skipAuth = ['/auth', '/auth/', '/token', '/register'].includes(kase.url);
   if (!skipAuth && state.token)  body.set('token',  state.token);
   if (!skipAuth && state.u_hash) body.set('u_hash', state.u_hash);
   
