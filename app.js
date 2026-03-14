@@ -2607,6 +2607,7 @@ async function exportSuiteSnapshot() {
     .sort((a, b) => a.sort - b.sort)
     .map(c => ({
   case_id:         c.id,
+  name:            c.name || '',
   suite:           c.suite,
   sort:            c.sort,
   active:          c.active,
@@ -2623,7 +2624,11 @@ async function exportSuiteSnapshot() {
 }));
   const exportData = { type: 'suite_snapshot', suite_id: S.activeSuite.id, suite_name: S.activeSuite.name, exported_at: new Date().toISOString(), cases: suiteSnapshot };
   const subject = `AssistTest Suite Snapshot — ${S.activeSuite.name} — ${new Date().toLocaleString()}`;
-  const body = JSON.stringify(exportData, null, 2);
+  
+  const casesFormatted = exportData.cases.map(c => JSON.stringify(c, null, 2)).join(',\n\n');
+  const headerObj = { type: exportData.type, suite_id: exportData.suite_id, suite_name: exportData.suite_name, exported_at: exportData.exported_at };
+  const body = JSON.stringify(headerObj, null, 2).replace(/\}$/, '') + ',\n\n"cases": [\n\n' + casesFormatted + '\n\n]\n}';
+  
   let sent = 0;
   for (const r of recipients) {
     try {
