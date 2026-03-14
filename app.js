@@ -2625,9 +2625,9 @@ async function exportSuiteSnapshot() {
   const exportData = { type: 'suite_snapshot', suite_id: S.activeSuite.id, suite_name: S.activeSuite.name, exported_at: new Date().toISOString(), cases: suiteSnapshot };
   const subject = `AssistTest Suite Snapshot — ${S.activeSuite.name} — ${new Date().toLocaleString()}`;
   
-  const casesFormatted = exportData.cases.map(c => JSON.stringify(c, null, 2)).join(',\n\n');
+  const casesFormatted = exportData.cases.map(c => JSON.stringify(c, null, 2)).join(',\r\n\r\n');
   const headerObj = { type: exportData.type, suite_id: exportData.suite_id, suite_name: exportData.suite_name, exported_at: exportData.exported_at };
-  const body = JSON.stringify(headerObj, null, 2).replace(/\}$/, '') + ',\n\n"cases": [\n\n' + casesFormatted + '\n\n]\n}';
+  const body = JSON.stringify(headerObj, null, 2).replace(/\}$/, '') + ',\r\n\r\n"cases": [\r\n\r\n' + casesFormatted + '\r\n\r\n]\r\n}';
   
   let sent = 0;
   for (const r of recipients) {
