@@ -299,7 +299,7 @@ const S = {
 // ─────────────────────────────
 async function login() {
   S.trace = [];
-  renderResults();
+  if (typeof renderResults === 'function') try { renderResults(); } catch(e) {}
   setRunStatus('running', 'Авторизация...');
   try {
     // Для авторизации используем TESTER (фиксированный аккаунт)
