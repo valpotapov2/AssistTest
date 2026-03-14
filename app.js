@@ -2229,7 +2229,10 @@ function resolveVars(str, state) {
       const c = cfg();
       return c[cfgKey] !== undefined ? c[cfgKey] : match;
     }
+    if (key === 'timestamp') return Date.now().toString();
+    if (key === 'rand7') return Date.now().toString().slice(-7);
     return state[key] !== undefined ? state[key] : match;
+
   });
 }
 
