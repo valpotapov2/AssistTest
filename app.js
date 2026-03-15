@@ -298,9 +298,8 @@ const S = {
 // LOGIN
 // ─────────────────────────────
 async function login() {
-  S.trace = [];
-  if (typeof renderResults === 'function') try { renderResults(); } catch(e) {}
   setRunStatus('running', 'Авторизация...');
+
   try {
     // Для авторизации используем TESTER (фиксированный аккаунт)
     const testerCfg = accountManager.getTester();
@@ -350,13 +349,7 @@ async function login() {
 // ─────────────────────────────
 // LOGOUT
 // ─────────────────────────────
-async function logout() {
-  if (S.state.token && S.state.u_hash) {
-    try {
-      const { baseUrl } = cfg();
-      await fetch(`${baseUrl}/logout/?token=${encodeURIComponent(S.state.token)}&u_hash=${encodeURIComponent(S.state.u_hash)}`);
-    } catch(e) {}
-  }
+function logout() {
   S.state = {};
   S.suites = [];
   S.cases  = [];
@@ -364,6 +357,7 @@ async function logout() {
   setRunStatus('idle', 'Не авторизован');
   toast('Вы вышли', 'info');
 }
+
 // ─────────────────────────────
 // LOAD SUITES
 // ─────────────────────────────
@@ -878,8 +872,12 @@ function renderEditor() {
       <div class="field-group">
         <div class="field-label">Роль (u_a_role)</div>
         <div class="role-toggle">
-          <button class="role-opt ${c.u_a_role==4?'selected':''}" onclick="setRole(4)">role=4 (Admin)</button>
-          <button class="role-opt ${c.u_a_role==2?'selected':''}" onclick="setRole(2)">u_a_role=2 (Врач)</button>
+          <label class="role-opt ${c.u_a_role==0?'selected':''}" onclick="setRole(0)">
+            <input type="radio" name="role" value="0"> role=4 (Admin)
+          </label>
+          <label class="role-opt ${c.u_a_role==2?'selected':''}" onclick="setRole(2)">
+            <input type="radio" name="role" value="2"> u_a_role=2 (Врач)
+          </label>
         </div>
       </div>
       <div class="field-group">
@@ -937,10 +935,9 @@ function buildValidationRow(v, i) {
 
 function setRole(r) {
   if (!S.editingCase) return;
-  if (S.editingCase.u_a_role === r) r = 0;
   S.editingCase.u_a_role = r;
   document.querySelectorAll('.role-opt').forEach((el, i) => {
-    el.classList.toggle('selected', (i===0 && r===4) || (i===1 && r===2));
+    el.classList.toggle('selected', (i===0 && r===0) || (i===1 && r===2));
   });
 }
 
@@ -984,7 +981,9 @@ function collectEditorValues() {
     snapshot_config: tryParse(document.getElementById('ef-snapshot')?.value, null),
     tags:          document.getElementById('ef-tags')?.value || '',
     sort:          parseInt(document.getElementById('ef-sort')?.value) || 0,
-    u_a_role: S.editingCase?.u_a_role ?? 0,
+    u_a_role: document.querySelector('.role-opt.selected input')?.value
+  ? Number(document.querySelector('.role-opt.selected input').value)
+  : 0,
   };
 }
 
@@ -1700,9 +1699,9 @@ async function executeCase(kase) {
       if (qs) fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + qs;
       // auth params for GET — всегда передаём token, u_hash, u_a_role (включая 0)
       const authParams = { token: S.state.token||'', u_hash: S.state.u_hash||'' };
-      if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== 0 && kase.u_a_role !== 4) {
+      if (kase.u_a_role !== undefined && kase.u_a_role !== null) {
         authParams.u_a_role = String(kase.u_a_role);
-      }    
+      }
       const authQs = new URLSearchParams(authParams).toString();
       fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + authQs;
     } else {
@@ -1898,14 +1897,10 @@ async function executeCase(kase) {
 function buildFormBody(params, kase, state) {
   const body = new URLSearchParams();
 
-  // auth — не передаём token/u_hash для эндпоинтов авторизации
-  const skipAuth = ['/auth', '/auth/', '/token', '/register'].includes(kase.url);
-  const tokenToUse  = params.token  || state.token;
-  const uhashToUse  = params.u_hash || state.u_hash;
-  if (!skipAuth && tokenToUse)  body.set('token',  tokenToUse);
-  if (!skipAuth && uhashToUse)  body.set('u_hash', uhashToUse);
-  
-  if (kase.u_a_role !== undefined && kase.u_a_role !== null && kase.u_a_role !== 0 && kase.u_a_role !== 4) body.set('u_a_role', String(kase.u_a_role));
+  // auth
+  if (state.token)  body.set('token',  state.token);
+  if (state.u_hash) body.set('u_hash', state.u_hash);
+  if (kase.u_a_role !== undefined && kase.u_a_role !== null) body.set('u_a_role', String(kase.u_a_role));
 
   Object.entries(params).forEach(([key, value]) => {
     if (value === null || typeof value === 'undefined') return;
@@ -2229,10 +2224,7 @@ function resolveVars(str, state) {
       const c = cfg();
       return c[cfgKey] !== undefined ? c[cfgKey] : match;
     }
-    if (key === 'timestamp') return Date.now().toString();
-    if (key === 'rand7') return Date.now().toString().slice(-7);
     return state[key] !== undefined ? state[key] : match;
-
   });
 }
 
@@ -2618,30 +2610,10 @@ async function exportSuiteSnapshot() {
   const suiteSnapshot = S.cases
     .filter(c => c.suite === S.activeSuite.id)
     .sort((a, b) => a.sort - b.sort)
-    .map(c => ({
-  case_id:         c.id,
-  name:            c.name || '',
-  suite:           c.suite,
-  sort:            c.sort,
-  active:          c.active,
-  chain_group:     c.group || '',
-  depends_on:      c.depends_on || 0,
-  method:          c.method,
-  url:             c.url,
-  u_a_role:        c.u_a_role ?? 0,
-  params:          c.params || '{}',
-  state_save:      c.state_save || '{}',
-  validations:     c.validations || '[]',
-  snapshot_config: c.snapshot_config || null,
-  tags:            c.tags || '',
-}));
+    .map(c => ({ case_id: c.id, suite: c.suite, sort: c.sort, active: c.active, chain_group: c.group || '', depends_on: c.depends_on || 0, method: c.method, url: c.url }));
   const exportData = { type: 'suite_snapshot', suite_id: S.activeSuite.id, suite_name: S.activeSuite.name, exported_at: new Date().toISOString(), cases: suiteSnapshot };
   const subject = `AssistTest Suite Snapshot — ${S.activeSuite.name} — ${new Date().toLocaleString()}`;
-  
-  const casesFormatted = exportData.cases.map(c => JSON.stringify(c, null, 2)).join(',\r\n\r\n');
-  const headerObj = { type: exportData.type, suite_id: exportData.suite_id, suite_name: exportData.suite_name, exported_at: exportData.exported_at };
-  const body = JSON.stringify(headerObj, null, 2).replace(/\}$/, '') + ',\r\n\r\n"cases": [\r\n\r\n' + casesFormatted + '\r\n\r\n]\r\n}';
-  
+  const body = JSON.stringify(exportData, null, 2);
   let sent = 0;
   for (const r of recipients) {
     try {
